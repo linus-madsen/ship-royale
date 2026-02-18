@@ -506,6 +506,7 @@ function damageShip(room, targetSlot, dmg, attackerSlot) {
 
   if (target.hp <= 0) {
     target.alive = false;
+    target.placement = room.aliveCount; // record placement at time of death (e.g. 5 alive = 5th place)
     room.aliveCount--;
     addKill(room, targetSlot, attackerSlot);
 
@@ -559,7 +560,7 @@ function endGame(room) {
     if (!ship) continue;
 
     const won = ship.alive && room.aliveCount <= 1;
-    const place = ship.alive ? 1 : room.aliveCount + 1;
+    const place = won ? 1 : (ship.placement || room.aliveCount + 1);
     const placementBonus = (MAX_PLAYERS - place) * 50;
     ship.xp += placementBonus;
     if (won) ship.xp += 500;
