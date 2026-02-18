@@ -128,7 +128,7 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 const MAX_PLAYERS = 12;
-const MATCHMAKING_TIME = 30;
+const MATCHMAKING_TIME = 15;
 
 let rooms = [];
 let nextRoomId = 1;

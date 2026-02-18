@@ -584,13 +584,10 @@
                 for (var i = 0; i < mpPlayers.length; i++) { if (!mpPlayers[i].isAI) humanCount++; }
                 mpActive = humanCount > 1;
 
-                // Actually start the game
-                gameStarted = true;
-                window.GAME_STARTED = true;
-                if (bgMusic) bgMusic.setVolume(0.22);
-                var startVoices = ['sfx_start1','sfx_start2','sfx_start3','sfx_start4'];
-                if (scene) scene.sound.play(startVoices[Math.floor(Math.random()*startVoices.length)], { volume: 0.9 });
-                domHud.classList.add('show');
+                // Restart the scene so create() picks up multiplayer state
+                scene.scene.restart();
+                // Set a flag so create() knows to auto-start
+                window._mpAutoStart = true;
             } else if (msg.type === 'update' && mpActive) {
                 // Update remote player positions
                 for (var ui = 0; ui < msg.players.length; ui++) {
@@ -1120,6 +1117,18 @@
         if (playerMineCount > 0) domBtnMine.classList.remove('disabled'); else domBtnMine.classList.add('disabled');
         domBuffSpeed.classList.remove('active');
         domBuffCannon.classList.remove('active');
+
+        // Auto-start after multiplayer matchmaking restarts the scene
+        if (window._mpAutoStart) {
+            window._mpAutoStart = false;
+            gameStarted = true;
+            window.GAME_STARTED = true;
+            if (bgMusic) bgMusic.setVolume(0.22);
+            var startVoices = ['sfx_start1','sfx_start2','sfx_start3','sfx_start4'];
+            scene.sound.play(startVoices[Math.floor(Math.random()*startVoices.length)], { volume: 0.9 });
+            domStartScreen.classList.add('hidden');
+            domHud.classList.add('show');
+        }
     }
 
     function resetState() {
