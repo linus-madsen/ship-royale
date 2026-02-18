@@ -150,7 +150,7 @@ function createRoom() {
 function tickRoom(room) {
   if (room.state !== 'waiting') return;
   room.countdown--;
-  broadcastRoom(room, { type: 'waiting', players: room.players.length, countdown: room.countdown, names: room.players.map(p => p.name) });
+  broadcastRoom(room, { type: 'waiting', players: room.players.length, countdown: room.countdown, names: room.players.map(p => p.name), roomId: room.id });
   if (room.countdown <= 0) startGame(room);
 }
 
@@ -162,6 +162,7 @@ function startGame(room) {
   if (room.state !== 'waiting') return;
   room.state = 'playing';
   clearInterval(room.interval);
+  console.log(`[Room ${room.id}] Game starting with ${room.players.length} humans`);
   // Build player list: human players + AI to fill 12 slots
   const playerList = [];
   for (let i = 0; i < room.players.length; i++) {
@@ -215,8 +216,9 @@ wss.on('connection', (ws) => {
         if (!usedSlots.has(s)) { playerSlot = s; break; }
       }
       room.players.push({ ws, slot: playerSlot, name: String(msg.name || 'Anon').slice(0, 20), alive: true });
+      console.log(`[Room ${room.id}] Player "${msg.name}" joined as slot ${playerSlot} (${room.players.length}/${MAX_PLAYERS})`);
       // Immediately send waiting status
-      broadcastRoom(room, { type: 'waiting', players: room.players.length, countdown: room.countdown, names: room.players.map(p => p.name) });
+      broadcastRoom(room, { type: 'waiting', players: room.players.length, countdown: room.countdown, names: room.players.map(p => p.name), roomId: room.id });
       // Auto-start if full
       if (room.players.length >= MAX_PLAYERS) startGame(room);
 

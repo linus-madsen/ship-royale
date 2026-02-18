@@ -569,7 +569,7 @@
             try { msg = JSON.parse(evt.data); } catch { return; }
 
             if (msg.type === 'waiting') {
-                domMmStatus.textContent = msg.players + '/12 players';
+                domMmStatus.textContent = msg.players + '/12 players (Room ' + (msg.roomId || '?') + ')';
                 domMmCountdown.textContent = msg.countdown;
                 if (msg.names) {
                     domMmPlayers.innerHTML = msg.names.map(function(n) { return '<div>⚓ ' + n + '</div>'; }).join('');
