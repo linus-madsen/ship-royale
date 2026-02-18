@@ -230,7 +230,7 @@ wss.on('connection', (ws) => {
       if (!playerRoom._stateCount) playerRoom._stateCount = 0;
       playerRoom._stateCount++;
       if (playerRoom._stateCount % 50 === 1) console.log(`[Room ${playerRoom.id}] State relay #${playerRoom._stateCount} from slot ${playerSlot} (x:${msg.x} y:${msg.y})`);
-      playerRoom.playerStates[playerSlot] = { slot: playerSlot, x: msg.x, y: msg.y, rotation: msg.rotation, hp: msg.hp };
+      playerRoom.playerStates[playerSlot] = { slot: playerSlot, x: msg.x, y: msg.y, vx: msg.vx || 0, vy: msg.vy || 0, rotation: msg.rotation, hp: msg.hp };
       // Broadcast all player states to everyone
       const states = Object.values(playerRoom.playerStates);
       const data = JSON.stringify({ type: 'update', players: states });

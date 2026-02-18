@@ -544,7 +544,7 @@
     var mpRemoteStates = {};  // slot -> {x, y, rotation, hp}
     var mpActive = false;     // true if in a multiplayer game with >1 human
     var mpSendTimer = 0;
-    var MP_SEND_INTERVAL = 0.1; // 10 updates/sec
+    var MP_SEND_INTERVAL = 0.05; // 20 updates/sec
 
     var domMmOverlay = document.getElementById('mm-overlay');
     var domMmStatus = document.getElementById('mm-status');
@@ -1428,7 +1428,7 @@
             mpSendTimer -= dt;
             if (mpSendTimer <= 0) {
                 mpSendTimer = MP_SEND_INTERVAL;
-                mpWs.send(JSON.stringify({ type: 'state', x: Math.round(ship.x), y: Math.round(ship.y), rotation: Math.round(ship.rotation * 1000) / 1000, hp: Math.round(playerHP * 10) / 10 }));
+                mpWs.send(JSON.stringify({ type: 'state', x: Math.round(ship.x), y: Math.round(ship.y), vx: Math.round(ship.vx || 0), vy: Math.round(ship.vy || 0), rotation: Math.round(ship.rotation * 1000) / 1000, hp: Math.round(playerHP * 10) / 10 }));
             }
         }
 
@@ -1440,10 +1440,14 @@
                 var rslot = enemyIdxToSlot(ri);
                 var rs = mpRemoteStates[rslot];
                 if (rs) {
-                    // Smooth interpolation
-                    re.x += (rs.x - re.x) * 0.3;
-                    re.y += (rs.y - re.y) * 0.3;
-                    re.rotation += Phaser.Math.Angle.Wrap(rs.rotation - re.rotation) * 0.3;
+                    // Dead reckoning: predict position using velocity
+                    var targetX = rs.x + (rs.vx || 0) * dt * 2;
+                    var targetY = rs.y + (rs.vy || 0) * dt * 2;
+                    // Smooth interpolation toward predicted position
+                    var lerpFactor = Math.min(1, dt * 12); // ~12x per second catchup
+                    re.x += (targetX - re.x) * lerpFactor;
+                    re.y += (targetY - re.y) * lerpFactor;
+                    re.rotation += Phaser.Math.Angle.Wrap(rs.rotation - re.rotation) * lerpFactor;
                     re.hp = rs.hp;
                     re.sprite.x = re.x; re.sprite.y = re.y; re.sprite.rotation = re.rotation;
                 }
