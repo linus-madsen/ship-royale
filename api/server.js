@@ -122,9 +122,9 @@ const islandDefs = [
   {x:2875,y:2880,key:'island2',scale:0.8},{x:3500,y:2933,key:'island2',scale:0.7},
 ];
 
-// Approximate island radii based on key+scale (island images are ~160-200px wide)
-const islandSizes = { island1: 85, island2: 80, island3: 90, island4: 75, island5: 85, island6: 80, island7: 90 };
-const islandCircles = islandDefs.map(d => ({ x: d.x, y: d.y, r: (islandSizes[d.key] || 80) * d.scale * 0.45 }));
+// All island images are 192x192px. Radius = displayWidth * 0.45 (matching client)
+const ISLAND_IMG_SIZE = 192;
+const islandCircles = islandDefs.map(d => ({ x: d.x, y: d.y, r: ISLAND_IMG_SIZE * d.scale * 0.45 }));
 
 // ========== PHYSICS HELPERS ==========
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
