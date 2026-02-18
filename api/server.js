@@ -918,7 +918,7 @@ function tickGame(room) {
       slot: s.slot, x: Math.round(s.x), y: Math.round(s.y),
       rotation: Math.round(s.rotation * 1000) / 1000,
       hp: Math.round(s.hp * 10) / 10, alive: s.alive,
-      name: s.name, color: s.color,
+      name: s.name, color: s.color, isAI: s.isAI,
       torpedoes: s.torpedoes, mines: s.mines, waypoints: s.waypoints ? s.waypoints.length : 0,
       speedBuff: s.speedBuff > 0 ? Math.ceil(s.speedBuff) : 0,
       fireBuff: s.fireBuff > 0 ? Math.ceil(s.fireBuff) : 0,

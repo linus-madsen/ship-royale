@@ -782,7 +782,14 @@
                 if (sd.slot !== mySlot) spr.setTint(sd.color);
                 var hpBg = scene.add.rectangle(0, 0, 50, 6, 0x333333).setDepth(20).setOrigin(0.5, 0.5);
                 var hpBar = scene.add.rectangle(0, 0, 50, 6, sd.slot === mySlot ? 0x00ff00 : sd.color).setDepth(21).setOrigin(0, 0.5);
-                sp = { sprite: spr, hpBarBg: hpBg, hpBar: hpBar, _ix: sd.x, _iy: sd.y, _ir: sd.rotation };
+                var nameLabel = null;
+                if (!sd.isAI) {
+                    nameLabel = scene.add.text(sd.x, sd.y - 48, sd.name || '', {
+                        fontSize: '10px', fontFamily: 'Press Start 2P, monospace',
+                        color: '#ffffff', stroke: '#000000', strokeThickness: 3
+                    }).setDepth(22).setOrigin(0.5, 1);
+                }
+                sp = { sprite: spr, hpBarBg: hpBg, hpBar: hpBar, nameLabel: nameLabel, _ix: sd.x, _iy: sd.y, _ir: sd.rotation };
                 shipSprites[sd.slot] = sp;
             }
 
@@ -801,6 +808,7 @@
                 sp.sprite.setScale(1); sp.sprite.setAlpha(1);
                 sp.hpBarBg.setPosition(sp._ix, sp._iy - 35).setVisible(true);
                 sp.hpBar.setPosition(sp._ix - 25, sp._iy - 35).setVisible(true);
+                if (sp.nameLabel) sp.nameLabel.setPosition(sp._ix, sp._iy - 42).setVisible(true);
                 sp.hpBar.width = 50 * (sd.hp / MAX_HP);
 
                 // Flash on damage
@@ -821,6 +829,7 @@
                 }
                 sp.hpBarBg.setVisible(false);
                 sp.hpBar.setVisible(false);
+                if (sp.nameLabel) sp.nameLabel.setVisible(false);
             }
 
             // Follow own ship
