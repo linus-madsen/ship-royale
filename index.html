@@ -148,6 +148,20 @@
         .lb-row .avg { width: 50px; text-align: right; color: #ffcc00; }
         .lb-row .kills { width: 40px; text-align: right; }
         #lb-close { position: fixed; top: 12px; left: 12px; font-size: 10px; padding: 6px 14px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555; cursor: pointer; font-family: 'Press Start 2P', monospace; z-index: 10002; }
+
+        /* === Matchmaking overlay === */
+        #mm-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10,10,26,0.92); z-index: 600;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Press Start 2P', monospace; color: #fff;
+        }
+        #mm-overlay.show { display: flex; }
+        #mm-overlay .mm-title { color: #ffcc00; font-size: 14px; margin-bottom: 16px; text-shadow: 0 0 8px #ff8800; }
+        #mm-overlay .mm-status { font-size: 10px; margin-bottom: 8px; color: #ccc; }
+        #mm-overlay .mm-countdown { font-size: 24px; color: #ff8800; margin-bottom: 16px; }
+        #mm-overlay .mm-players { font-size: 8px; color: #aaa; margin-bottom: 16px; max-height: 120px; overflow-y: auto; }
+        #mm-skip-btn { font-size: 9px; padding: 8px 24px; cursor: pointer; font-family: 'Press Start 2P', monospace; }
     </style>
 </head>
 <body>
@@ -232,6 +246,15 @@
     <div id="lb-content" class="lb-table"></div>
     <button id="lb-close">← Back</button>
 </div>
+<!-- Matchmaking overlay -->
+<div id="mm-overlay">
+    <p class="mm-title">⚓ FINDING OPPONENTS ⚓</p>
+    <p class="mm-status" id="mm-status">Connecting...</p>
+    <p class="mm-countdown" id="mm-countdown">30</p>
+    <div class="mm-players" id="mm-players"></div>
+    <button id="mm-skip-btn" class="nes-btn is-warning">SKIP WAIT</button>
+</div>
+
 <div id="splash">
     <img src="assets/splash.jpg" alt="Ship Royale">
     <div id="splash-tap">TAP TO START</div>
@@ -514,6 +537,158 @@
     var playerHits = 0;
     var playerName = '';
     var API_BASE = '/warship/api';
+    // === Multiplayer state ===
+    var mpWs = null;          // WebSocket connection
+    var mpSlot = -1;          // our assigned slot
+    var mpPlayers = [];       // [{slot, name, isAI}...]
+    var mpRemoteStates = {};  // slot -> {x, y, rotation, hp}
+    var mpActive = false;     // true if in a multiplayer game with >1 human
+    var mpSendTimer = 0;
+    var MP_SEND_INTERVAL = 0.1; // 10 updates/sec
+
+    var domMmOverlay = document.getElementById('mm-overlay');
+    var domMmStatus = document.getElementById('mm-status');
+    var domMmCountdown = document.getElementById('mm-countdown');
+    var domMmPlayers = document.getElementById('mm-players');
+
+    window.startMatchmaking = function() {
+        domMmOverlay.classList.add('show');
+        domMmStatus.textContent = 'Connecting...';
+        domMmCountdown.textContent = '30';
+        domMmPlayers.innerHTML = '';
+
+        var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        mpWs = new WebSocket(proto + '//' + location.host + '/warship/api/ws');
+
+        mpWs.onopen = function() {
+            mpWs.send(JSON.stringify({ type: 'join', name: window.WARSHIP_PLAYER || 'Anonymous' }));
+        };
+
+        mpWs.onmessage = function(evt) {
+            var msg;
+            try { msg = JSON.parse(evt.data); } catch { return; }
+
+            if (msg.type === 'waiting') {
+                domMmStatus.textContent = msg.players + '/12 players';
+                domMmCountdown.textContent = msg.countdown;
+                if (msg.names) {
+                    domMmPlayers.innerHTML = msg.names.map(function(n) { return '<div>⚓ ' + n + '</div>'; }).join('');
+                }
+            } else if (msg.type === 'gameStart') {
+                domMmOverlay.classList.remove('show');
+                mpSlot = msg.slot;
+                mpPlayers = msg.players;
+                mpRemoteStates = {};
+                // Check if there are other humans
+                var humanCount = 0;
+                for (var i = 0; i < mpPlayers.length; i++) { if (!mpPlayers[i].isAI) humanCount++; }
+                mpActive = humanCount > 1;
+
+                // Actually start the game
+                gameStarted = true;
+                window.GAME_STARTED = true;
+                if (bgMusic) bgMusic.setVolume(0.22);
+                var startVoices = ['sfx_start1','sfx_start2','sfx_start3','sfx_start4'];
+                if (scene) scene.sound.play(startVoices[Math.floor(Math.random()*startVoices.length)], { volume: 0.9 });
+                domHud.classList.add('show');
+            } else if (msg.type === 'update' && mpActive) {
+                // Update remote player positions
+                for (var ui = 0; ui < msg.players.length; ui++) {
+                    var ps = msg.players[ui];
+                    if (ps.slot !== mpSlot) {
+                        mpRemoteStates[ps.slot] = ps;
+                    }
+                }
+            } else if (msg.type === 'action' && mpActive) {
+                // Remote player fired something — we handle this in the game loop
+                if (window.handleRemoteAction) window.handleRemoteAction(msg);
+            } else if (msg.type === 'kill' && mpActive) {
+                // Remote kill notification — could update UI but client-authoritative means
+                // each client handles their own damage, so this is informational
+            }
+        };
+
+        mpWs.onerror = function() {
+            // Fallback to single player
+            domMmOverlay.classList.remove('show');
+            domStartScreen.classList.remove('hidden');
+        };
+
+        mpWs.onclose = function() {
+            mpWs = null;
+        };
+    };
+
+    document.getElementById('mm-skip-btn').addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (mpWs && mpWs.readyState === 1) {
+            mpWs.send(JSON.stringify({ type: 'skip' }));
+        }
+    });
+
+    // Helper: get enemy index from multiplayer slot
+    function slotToEnemyIdx(slot) {
+        // In multiplayer, slot 0..11 maps to: our slot = player ship, other slots = enemies array
+        // Enemies are indexed 0..10 but assigned to the 11 non-player slots
+        if (!mpActive) return -1;
+        // Build mapping: non-player slots in order are enemy indices
+        var enemySlots = [];
+        for (var s = 0; s < 12; s++) {
+            if (s !== mpSlot) enemySlots.push(s);
+        }
+        for (var i = 0; i < enemySlots.length; i++) {
+            if (enemySlots[i] === slot) return i;
+        }
+        return -1;
+    }
+
+    function isHumanSlot(slot) {
+        if (!mpActive) return false;
+        for (var i = 0; i < mpPlayers.length; i++) {
+            if (mpPlayers[i].slot === slot && !mpPlayers[i].isAI) return true;
+        }
+        return false;
+    }
+
+    // Get the multiplayer slot for a given enemy index
+    function enemyIdxToSlot(idx) {
+        if (!mpActive) return -1;
+        var enemySlots = [];
+        for (var s = 0; s < 12; s++) {
+            if (s !== mpSlot) enemySlots.push(s);
+        }
+        return idx >= 0 && idx < enemySlots.length ? enemySlots[idx] : -1;
+    }
+
+    // Handle remote player actions (fire, torpedo, mine)
+    window.handleRemoteAction = function(msg) {
+        if (!scene || !gameStarted || gameOver) return;
+        var eIdx = slotToEnemyIdx(msg.slot);
+        if (eIdx < 0 || eIdx >= enemies.length) return;
+        var en = enemies[eIdx];
+        if (en.hp <= 0) return;
+
+        if (msg.kind === 'cannon') {
+            spawnCannonball(msg.x, msg.y, msg.angle, eIdx);
+        } else if (msg.kind === 'torpedo') {
+            var tSprite = scene.add.image(msg.x, msg.y, 'torpedo').setDepth(5).setRotation(msg.angle);
+            // Map targetIdx: -1 means targeting player, >=0 means enemy index
+            var tTarget = msg.targetIdx;
+            torpedoes.push({ x: msg.x, y: msg.y, vx: Math.cos(msg.angle)*TORPEDO_SPEED, vy: Math.sin(msg.angle)*TORPEDO_SPEED, rotation: msg.angle, owner: eIdx, targetIdx: tTarget, life: TORPEDO_LIFE, sprite: tSprite });
+        } else if (msg.kind === 'mine') {
+            var mSprite = scene.add.image(msg.x, msg.y, 'mine').setDepth(5).setScale(1.2);
+            scene.tweens.add({ targets: mSprite, y: msg.y - 3, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+            activeMines.push({ x: msg.x, y: msg.y, owner: eIdx, life: MINE_LIFETIME, sprite: mSprite, armTimer: 1.0 });
+        }
+    };
+
+    // Send fire event to server
+    function mpSendFire(kind, x, y, angle, targetIdx) {
+        if (mpActive && mpWs && mpWs.readyState === 1) {
+            mpWs.send(JSON.stringify({ type: 'fire', kind: kind, x: Math.round(x), y: Math.round(y), angle: Math.round(angle * 1000) / 1000, targetIdx: targetIdx }));
+        }
+    }
+
     var cheerQueue = [];
     function shuffleCheers() {
         var arr = ['sfx_cheer1','sfx_cheer2','sfx_cheer3','sfx_cheer4'];
@@ -553,14 +728,10 @@
 
     document.getElementById('start-btn').addEventListener('click', function(e) {
         e.stopPropagation();
-        gameStarted = true;
-        window.GAME_STARTED = true;
-        if (bgMusic) bgMusic.setVolume(0.22);
         playClick();
-        var startVoices = ['sfx_start1','sfx_start2','sfx_start3','sfx_start4'];
-        scene.sound.play(startVoices[Math.floor(Math.random()*startVoices.length)], { volume: 0.9 });
         domStartScreen.classList.add('hidden');
-        domHud.classList.add('show');
+        // Start matchmaking
+        window.startMatchmaking();
     });
 
     // Block touch events on action buttons from reaching Phaser canvas
@@ -578,6 +749,7 @@
         var angle = Math.atan2(nearest.y - ship.y, nearest.x - ship.x);
         var tSprite = scene.add.image(ship.x, ship.y, 'torpedo').setDepth(5).setRotation(angle);
         torpedoes.push({ x: ship.x, y: ship.y, vx: Math.cos(angle)*TORPEDO_SPEED, vy: Math.sin(angle)*TORPEDO_SPEED, rotation: angle, owner: -1, targetIdx: nearest.idx, life: TORPEDO_LIFE, sprite: tSprite });
+        mpSendFire('torpedo', ship.x, ship.y, angle, nearest.idx);
         playerTorpedoCount--; playerTorpsFired++;
         domTorpedoCount.textContent = 'x' + playerTorpedoCount;
         if (playerTorpedoCount <= 0) domBtnTorpedo.classList.add('disabled');
@@ -590,6 +762,7 @@
         var mSprite = scene.add.image(ship.x, ship.y, 'mine').setDepth(5).setScale(1.2);
         scene.tweens.add({ targets: mSprite, y: ship.y - 3, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         activeMines.push({ x: ship.x, y: ship.y, owner: -1, life: MINE_LIFETIME, sprite: mSprite, armTimer: 1.0 });
+        mpSendFire('mine', ship.x, ship.y, 0, -1);
         playerMineCount--;
         domMineCount.textContent = 'x' + playerMineCount;
         if (playerMineCount <= 0) domBtnMine.classList.add('disabled');
@@ -812,26 +985,51 @@
         ship = scene.add.image(px, py, 'ship').setDepth(10);
         ship.vx = 0; ship.vy = 0; ship.rotation = Math.atan2(MAP_H/2 - py, MAP_W/2 - px);
 
+        // Build enemy slot list (all slots except ours)
+        var mpEnemySlots = [];
+        if (mpActive) {
+            for (var s = 0; s < 12; s++) { if (s !== mpSlot) mpEnemySlots.push(s); }
+        }
+
         for (var ei = 0; ei < ENEMY_COUNT; ei++) {
             var ea = ((ei + 1) / 12) * Math.PI * 2 + Math.PI / 2; // skip slot 0 (player at 6 o'clock)
             var ex = MAP_W / 2 + Math.cos(ea) * 1400;
             var ey = MAP_H / 2 + Math.sin(ea) * 1200;
             ex = Phaser.Math.Clamp(ex, 150, MAP_W - 150);
             ey = Phaser.Math.Clamp(ey, 150, MAP_H - 150);
-            var eSprite = scene.add.image(ex, ey, 'ship').setDepth(10).setTint(ENEMY_COLORS[ei]);
+
+            // In multiplayer, determine if this enemy slot is a human player
+            var eIsHuman = false;
+            var eName = ENEMY_NAMES[ei];
+            var eColor = ENEMY_COLORS[ei];
+            if (mpActive && mpEnemySlots[ei] !== undefined) {
+                var eslot = mpEnemySlots[ei];
+                for (var pi = 0; pi < mpPlayers.length; pi++) {
+                    if (mpPlayers[pi].slot === eslot) {
+                        if (!mpPlayers[pi].isAI) {
+                            eIsHuman = true;
+                            eName = mpPlayers[pi].name || eName;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            var eSprite = scene.add.image(ex, ey, 'ship').setDepth(10).setTint(eColor);
             eSprite.vx = 0; eSprite.vy = 0; eSprite.rotation = Math.atan2(MAP_H/2 - ey, MAP_W/2 - ex);
             var aggressive = (ei % 3 === 0);
             var eHPBarBg = scene.add.rectangle(0, 0, 50, 6, 0x333333).setDepth(20).setOrigin(0.5, 0.5);
-            var eHPBar = scene.add.rectangle(0, 0, 50, 6, ENEMY_COLORS[ei]).setDepth(21).setOrigin(0, 0.5);
+            var eHPBar = scene.add.rectangle(0, 0, 50, 6, eColor).setDepth(21).setOrigin(0, 0.5);
             enemies.push({
                 sprite: eSprite, x: ex, y: ey, vx: 0, vy: 0, rotation: eSprite.rotation,
                 hp: MAX_HP, fireTimer: Math.random() * FIRE_COOLDOWN,
-                color: ENEMY_COLORS[ei], name: ENEMY_NAMES[ei], idx: ei,
+                color: eColor, name: eName, idx: ei,
                 aggressive: aggressive, wanderTarget: null, wanderTimer: 0,
                 torpedoes: Math.random() < 0.3 ? 1 : 0,
                 hpBarBg: eHPBarBg, hpBar: eHPBar,
                 speedMult: 0.9 + Math.random() * 0.3,
-                lastAttacker: -2
+                lastAttacker: -2,
+                isHuman: eIsHuman
             });
         }
 
@@ -944,6 +1142,9 @@
         playerKills = 0; playerDmgDealt = 0; playerTorpsFired = 0; playerXP = 0; playerHits = 0; cheerQueue = [];
         gameOver = false; gameStarted = false; gameTime = 0; healthSpawnTimer = 0;
         aliveCount = ENEMY_COUNT + 1; zonePhase = 0; islandCircles = [];
+        // Reset multiplayer
+        if (mpWs) { mpWs.close(); mpWs = null; }
+        mpSlot = -1; mpPlayers = []; mpRemoteStates = {}; mpActive = false; mpSendTimer = 0;
     }
 
     function clearMarkers(){waypointMarkers.forEach(function(m){m.destroy()});waypointMarkers=[];if(routeGraphics)routeGraphics.clear()}
@@ -1210,10 +1411,47 @@
             ship.y = Phaser.Math.Clamp(sf.y, 0, MAP_H);
         }
 
+        // --- Send own state to server ---
+        if (mpActive && mpWs && mpWs.readyState === 1 && playerHP > 0) {
+            mpSendTimer -= dt;
+            if (mpSendTimer <= 0) {
+                mpSendTimer = MP_SEND_INTERVAL;
+                mpWs.send(JSON.stringify({ type: 'state', x: Math.round(ship.x), y: Math.round(ship.y), rotation: Math.round(ship.rotation * 1000) / 1000, hp: Math.round(playerHP * 10) / 10 }));
+            }
+        }
+
+        // --- Apply remote player states to human-controlled enemies ---
+        if (mpActive) {
+            for (var ri = 0; ri < enemies.length; ri++) {
+                var re = enemies[ri];
+                if (!re.isHuman || re.hp <= 0) continue;
+                var rslot = enemyIdxToSlot(ri);
+                var rs = mpRemoteStates[rslot];
+                if (rs) {
+                    // Smooth interpolation
+                    re.x += (rs.x - re.x) * 0.3;
+                    re.y += (rs.y - re.y) * 0.3;
+                    re.rotation += Phaser.Math.Angle.Wrap(rs.rotation - re.rotation) * 0.3;
+                    re.hp = rs.hp;
+                    re.sprite.x = re.x; re.sprite.y = re.y; re.sprite.rotation = re.rotation;
+                }
+            }
+        }
+
         // --- Enemy AI ---
         for (var ei = 0; ei < enemies.length; ei++) {
             var en = enemies[ei];
             if (en.hp <= 0) continue;
+            // Skip AI logic for human-controlled enemies
+            if (en.isHuman && mpActive) {
+                // Still update HP bar
+                if (en.hp > 0) {
+                    en.hpBarBg.setPosition(en.x, en.y - 35).setVisible(true);
+                    en.hpBar.setPosition(en.x - 25, en.y - 35).setVisible(true);
+                    en.hpBar.width = 50 * (en.hp / MAX_HP);
+                } else { en.hpBarBg.setVisible(false); en.hpBar.setVisible(false); }
+                continue;
+            }
             var espd = ENEMY_SPEED_BASE * en.speedMult;
             var eturn = ENEMY_TURN_RATE_BASE;
 
@@ -1315,7 +1553,9 @@
                 var ptx = playerTarget.idx >= 0 ? enemies[playerTarget.idx].x : 0;
                 var pty = playerTarget.idx >= 0 ? enemies[playerTarget.idx].y : 0;
                 if (playerTarget.idx >= 0 && canFire(ship, ptx, pty) && hasLineOfSight(ship.x, ship.y, ptx, pty)) {
-                    spawnCannonball(ship.x, ship.y, getFireAngle(ship, ptx, pty), -1);
+                    var pfAngle = getFireAngle(ship, ptx, pty);
+                    spawnCannonball(ship.x, ship.y, pfAngle, -1);
+                    mpSendFire('cannon', ship.x, ship.y, pfAngle, playerTarget.idx);
                     playerFireTimer = FIRE_COOLDOWN * playerFireMult;
                 }
             }

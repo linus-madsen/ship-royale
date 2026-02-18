@@ -120,5 +120,137 @@ app.get('/player/:username', (req, res) => {
   res.json(stats);
 });
 
+// ===== WebSocket Multiplayer =====
+const http = require('http');
+const { WebSocketServer } = require('ws');
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+const MAX_PLAYERS = 12;
+const MATCHMAKING_TIME = 30;
+
+let rooms = [];
+let nextRoomId = 1;
+
+function createRoom() {
+  const room = {
+    id: nextRoomId++,
+    players: [],       // { ws, slot, name, alive: true }
+    state: 'waiting',  // waiting | playing | done
+    countdown: MATCHMAKING_TIME,
+    interval: null,
+    playerStates: {}   // slot -> {x, y, rotation, hp}
+  };
+  room.interval = setInterval(() => tickRoom(room), 1000);
+  rooms.push(room);
+  return room;
+}
+
+function tickRoom(room) {
+  if (room.state !== 'waiting') return;
+  room.countdown--;
+  broadcastRoom(room, { type: 'waiting', players: room.players.length, countdown: room.countdown, names: room.players.map(p => p.name) });
+  if (room.countdown <= 0) startGame(room);
+}
+
+function findWaitingRoom() {
+  return rooms.find(r => r.state === 'waiting' && r.players.length < MAX_PLAYERS);
+}
+
+function startGame(room) {
+  if (room.state !== 'waiting') return;
+  room.state = 'playing';
+  clearInterval(room.interval);
+  // Build player list: human players + AI to fill 12 slots
+  const playerList = [];
+  for (let i = 0; i < room.players.length; i++) {
+    playerList.push({ slot: room.players[i].slot, name: room.players[i].name, isAI: false });
+  }
+  const usedSlots = new Set(room.players.map(p => p.slot));
+  for (let s = 0; s < MAX_PLAYERS && playerList.length < MAX_PLAYERS; s++) {
+    if (!usedSlots.has(s)) {
+      playerList.push({ slot: s, name: null, isAI: true });
+    }
+  }
+  // Send gameStart to each player with their slot
+  for (const p of room.players) {
+    if (p.ws.readyState === 1) {
+      p.ws.send(JSON.stringify({ type: 'gameStart', slot: p.slot, players: playerList }));
+    }
+  }
+}
+
+function broadcastRoom(room, msg) {
+  const data = JSON.stringify(msg);
+  for (const p of room.players) {
+    if (p.ws.readyState === 1) p.ws.send(data);
+  }
+}
+
+function removePlayer(room, ws) {
+  room.players = room.players.filter(p => p.ws !== ws);
+  if (room.state === 'waiting' && room.players.length === 0) {
+    clearInterval(room.interval);
+    rooms = rooms.filter(r => r !== room);
+  }
+}
+
+wss.on('connection', (ws) => {
+  let playerRoom = null;
+  let playerSlot = -1;
+
+  ws.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+
+    if (msg.type === 'join') {
+      // Join matchmaking
+      let room = findWaitingRoom();
+      if (!room) room = createRoom();
+      playerRoom = room;
+      // Assign next available slot
+      const usedSlots = new Set(room.players.map(p => p.slot));
+      for (let s = 0; s < MAX_PLAYERS; s++) {
+        if (!usedSlots.has(s)) { playerSlot = s; break; }
+      }
+      room.players.push({ ws, slot: playerSlot, name: String(msg.name || 'Anon').slice(0, 20), alive: true });
+      // Immediately send waiting status
+      broadcastRoom(room, { type: 'waiting', players: room.players.length, countdown: room.countdown, names: room.players.map(p => p.name) });
+      // Auto-start if full
+      if (room.players.length >= MAX_PLAYERS) startGame(room);
+
+    } else if (msg.type === 'skip' && playerRoom && playerRoom.state === 'waiting') {
+      startGame(playerRoom);
+
+    } else if (msg.type === 'state' && playerRoom && playerRoom.state === 'playing') {
+      // Store and relay player state
+      playerRoom.playerStates[playerSlot] = { slot: playerSlot, x: msg.x, y: msg.y, rotation: msg.rotation, hp: msg.hp };
+      // Broadcast all player states to everyone
+      const states = Object.values(playerRoom.playerStates);
+      const data = JSON.stringify({ type: 'update', players: states });
+      for (const p of playerRoom.players) {
+        if (p.ws !== ws && p.ws.readyState === 1) p.ws.send(data);
+      }
+
+    } else if (msg.type === 'fire' && playerRoom && playerRoom.state === 'playing') {
+      const data = JSON.stringify({ type: 'action', slot: playerSlot, kind: msg.kind, x: msg.x, y: msg.y, angle: msg.angle, targetIdx: msg.targetIdx });
+      for (const p of playerRoom.players) {
+        if (p.ws !== ws && p.ws.readyState === 1) p.ws.send(data);
+      }
+
+    } else if (msg.type === 'kill' && playerRoom && playerRoom.state === 'playing') {
+      const data = JSON.stringify({ type: 'kill', victimSlot: msg.victimSlot, killerSlot: msg.killerSlot });
+      for (const p of playerRoom.players) {
+        if (p.ws !== ws && p.ws.readyState === 1) p.ws.send(data);
+      }
+    }
+  });
+
+  ws.on('close', () => {
+    if (playerRoom) removePlayer(playerRoom, ws);
+  });
+});
+
 const PORT = process.env.PORT || 3847;
-app.listen(PORT, '127.0.0.1', () => console.log('Warship API on port ' + PORT));
+server.listen(PORT, '127.0.0.1', () => console.log('Warship API on port ' + PORT));
