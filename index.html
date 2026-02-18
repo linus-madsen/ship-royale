@@ -554,7 +554,7 @@
     window.startMatchmaking = function() {
         domMmOverlay.classList.add('show');
         domMmStatus.textContent = 'Connecting...';
-        domMmCountdown.textContent = '30';
+        domMmCountdown.textContent = '';
         domMmPlayers.innerHTML = '';
 
         var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';

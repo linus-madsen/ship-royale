@@ -142,7 +142,7 @@ function createRoom() {
     interval: null,
     playerStates: {}   // slot -> {x, y, rotation, hp}
   };
-  room.interval = setInterval(() => tickRoom(room), 1000);
+  room.interval = null; // start ticking only when first player joins
   rooms.push(room);
   return room;
 }
@@ -218,6 +218,10 @@ wss.on('connection', (ws) => {
       }
       playerSlot = availableSlots[Math.floor(Math.random() * availableSlots.length)];
       room.players.push({ ws, slot: playerSlot, name: String(msg.name || 'Anon').slice(0, 20), alive: true });
+      // Start countdown on first player join
+      if (!room.interval) {
+        room.interval = setInterval(() => tickRoom(room), 1000);
+      }
       console.log(`[Room ${room.id}] Player "${msg.name}" joined as slot ${playerSlot} (${room.players.length}/${MAX_PLAYERS})`);
       // Immediately send waiting status
       broadcastRoom(room, { type: 'waiting', players: room.players.length, countdown: room.countdown, names: room.players.map(p => p.name), roomId: room.id });
