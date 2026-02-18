@@ -275,7 +275,17 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    if (playerRoom) removePlayer(playerRoom, ws);
+    if (playerRoom && playerRoom.state === 'waiting') {
+      removePlayer(playerRoom, ws);
+    } else if (playerRoom && playerRoom.state === 'playing') {
+      // Broadcast disconnect — other clients will switch this ship to AI
+      console.log(`[Room ${playerRoom.id}] Player slot ${playerSlot} disconnected`);
+      const data = JSON.stringify({ type: 'disconnect', slot: playerSlot });
+      for (const p of playerRoom.players) {
+        if (p.ws !== ws && p.ws.readyState === 1) p.ws.send(data);
+      }
+      removePlayer(playerRoom, ws);
+    }
   });
 });
 

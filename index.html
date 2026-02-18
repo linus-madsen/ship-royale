@@ -604,6 +604,13 @@
                 if (window.handleRemoteAction) window.handleRemoteAction(msg);
             } else if (msg.type === 'kill' && mpActive) {
                 // Remote kill notification
+            } else if (msg.type === 'disconnect' && mpActive) {
+                // Switch disconnected player to AI control
+                var dcIdx = slotToEnemyIdx(msg.slot);
+                if (dcIdx >= 0 && dcIdx < enemies.length && enemies[dcIdx].hp > 0) {
+                    enemies[dcIdx].isHuman = false;
+                    addElimMessage(enemies[dcIdx].name, '#' + enemies[dcIdx].color.toString(16).padStart(6,'0'), '📡 Disconnected', '#888888');
+                }
             } else if (msg.type === 'death' && mpActive) {
                 // Remote player died — force their ship dead on our side
                 var deathIdx = slotToEnemyIdx(msg.slot);
