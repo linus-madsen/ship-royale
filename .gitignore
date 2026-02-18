@@ -1,0 +1,5 @@
+node_modules/
+api/warship.db
+api/node_modules/
+*.backup
+*.pre-nesscss

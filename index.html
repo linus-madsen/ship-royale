@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Ship Royale — Last Ship Standing</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a1a">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P" rel="stylesheet">
+    <link href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a1a; font-family: 'Press Start 2P', monospace; }
+        canvas { display: block; }
+        #splash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0a0a1a; z-index: 9999; transition: opacity 0.5s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #splash img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        #splash.fade { opacity: 0; }
+        #splash { cursor: pointer; }
+        #splash-tap {
+            position: absolute; bottom: 15%; left: 0; width: 100%; text-align: center;
+            font-family: 'Press Start 2P', monospace; font-size: 14px; color: #fff;
+            text-shadow: 0 0 10px #000, 0 0 20px #000; transition: opacity 0.2s;
+        }
+
+        /* === NES.css overrides for pixel font === */
+        .nes-container, .nes-btn, .nes-input { font-family: 'Press Start 2P', monospace; }
+        .nes-container.is-dark { background: rgba(0,0,0,0.8); border-color: #555; }
+
+        /* === Start Screen === */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 500; display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.7);
+        }
+        #start-screen.hidden { display: none; }
+        #start-screen .panel {
+            max-width: 340px; width: 90%; padding: 16px 12px; text-align: center;
+        }
+        #start-screen .title { color: #ffcc00; font-size: 14px; margin-bottom: 4px; text-shadow: 0 0 8px #ff8800; }
+        #start-screen .subtitle { color: #aaa; font-size: 8px; margin-bottom: 12px; }
+        #start-screen .legend { text-align: left; margin-bottom: 10px; }
+        #start-screen .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        #start-screen .legend-row img { width: 24px; height: 24px; image-rendering: pixelated; }
+        #start-screen .legend-row span { color: #fff; font-size: 7px; }
+        #start-screen .hint { color: #aaa; font-size: 7px; margin-bottom: 14px; line-height: 1.6; }
+        #start-screen .btn-row { margin-bottom: 8px; }
+        #start-screen .btn-row button { font-size: 9px; }
+        #start-screen #start-name-btn { font-size: 8px; color: #aaa; background: transparent; border: 1px solid #555; cursor: pointer; padding: 4px 8px; margin-top: 4px; }
+
+        /* === HUD === */
+        #hud {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100; pointer-events: none; display: none;
+        }
+        #hud.show { display: block; }
+        #hud-stats {
+            position: absolute; top: 8px; left: 8px;
+            padding: 6px 10px; pointer-events: auto;
+            font-size: 8px; line-height: 1.8;
+        }
+        #hud-hp { color: #00ff00; }
+        #hud-alive { color: #ccc; }
+        #hud-xp { color: #ffcc00; }
+        #hud-zone { color: #ff88ff; }
+        #hud-actions {
+            position: absolute; bottom: 16px; left: 16px;
+            display: flex; gap: 12px; pointer-events: auto;
+        }
+        .action-btn {
+            display: flex; flex-direction: column; align-items: center; cursor: pointer;
+            background: rgba(0,0,0,0.6); border: 2px solid #555; border-radius: 6px;
+            padding: 6px; pointer-events: auto;
+        }
+        .action-btn img { width: 48px; height: 48px; image-rendering: pixelated; }
+        .action-btn .count { color: #fff; font-size: 8px; margin-top: 2px; font-family: 'Press Start 2P', monospace; }
+        .action-btn.disabled { opacity: 0.4; }
+        #hud-buffs {
+            position: absolute; bottom: 16px; right: 16px;
+            display: flex; flex-direction: column; gap: 6px; align-items: center;
+            pointer-events: none;
+        }
+        .buff-icon { display: none; text-align: center; }
+        .buff-icon.active { display: block; }
+        .buff-icon img { width: 32px; height: 32px; image-rendering: pixelated; }
+        .buff-icon .timer { color: #44aaff; font-size: 8px; font-family: 'Press Start 2P', monospace; }
+        #buff-cannon .timer { color: #ffaa00; }
+
+        /* === End Screen === */
+        #end-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 500; display: none; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.8);
+        }
+        #end-screen.show { display: flex; }
+        #end-screen .panel { max-width: 340px; width: 90%; padding: 16px 12px; text-align: center; }
+        #end-screen .end-title { color: #ffcc00; font-size: 14px; margin-bottom: 12px; text-shadow: 0 0 8px #ff8800; }
+        #end-screen .end-stats { color: #fff; font-size: 8px; line-height: 2; margin-bottom: 14px; }
+        #end-screen .btn-row { margin-bottom: 8px; }
+        #end-screen .btn-row button { font-size: 9px; }
+
+        /* === Name overlay === */
+        #name-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10,10,26,0.95); z-index: 10000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Press Start 2P', monospace; color: #ffcc00;
+        }
+        #name-overlay.hidden { display: none; }
+        #name-overlay h1 { font-size: 16px; margin-bottom: 20px; text-shadow: 0 0 10px #ff8800; }
+        #name-overlay p { font-size: 8px; }
+        #name-overlay input {
+            font-size: 12px; padding: 10px 16px; width: 240px; text-align: center;
+            background: #112; border: 2px solid #ffcc00; color: #fff; border-radius: 0;
+            font-family: 'Press Start 2P', monospace; outline: none;
+        }
+        #name-overlay button {
+            margin-top: 16px; font-size: 10px; padding: 10px 32px;
+            font-family: 'Press Start 2P', monospace; cursor: pointer;
+        }
+        #name-overlay #lb-btn-start { margin-top: 10px; }
+
+        /* === Leaderboard overlay === */
+        #lb-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10,10,26,0.92); z-index: 10001;
+            display: none; flex-direction: column; align-items: center; justify-content: flex-start;
+            font-family: 'Press Start 2P', monospace; color: #fff; padding-top: 40px; overflow-y: auto;
+        }
+        #lb-overlay.show { display: flex; }
+        #lb-overlay h2 { color: #ffcc00; font-size: 14px; margin-bottom: 10px; }
+        .lb-tabs { display: flex; gap: 10px; margin-bottom: 12px; }
+        .lb-tabs button { font-size: 8px; padding: 6px 12px; background: #223; color: #aaa; border: 1px solid #555; cursor: pointer; font-family: 'Press Start 2P', monospace; }
+        .lb-tabs button.active { background: #446; color: #ffcc00; border-color: #ffcc00; }
+        .lb-table { width: 90%; max-width: 360px; }
+        .lb-row { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid #333; font-size: 8px; }
+        .lb-row.header { color: #ffcc00; font-weight: bold; border-bottom: 2px solid #555; }
+        .lb-row .rank { width: 24px; }
+        .lb-row .name { flex: 1; }
+        .lb-row .games { width: 36px; text-align: right; }
+        .lb-row .avg { width: 50px; text-align: right; color: #ffcc00; }
+        .lb-row .kills { width: 40px; text-align: right; }
+        #lb-close { position: fixed; top: 12px; left: 12px; font-size: 10px; padding: 6px 14px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555; cursor: pointer; font-family: 'Press Start 2P', monospace; z-index: 10002; }
+    </style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="start-screen">
+    <div class="nes-container is-dark panel">
+        <p class="title">⚓ SHIP ROYALE ⚓</p>
+        <p class="subtitle">12 ships enter · 1 survives</p>
+        <p class="subtitle" style="margin-bottom:8px;">— POWER-UPS —</p>
+        <div class="legend">
+            <div class="legend-row"><img src="assets/loot_torpedo.png?v=1740874000"><span>Torpedo pickup</span></div>
+            <div class="legend-row"><img src="assets/loot_heal.png?v=1740874000"><span>Repair kit +3 HP</span></div>
+            <div class="legend-row"><img src="assets/loot_speed.png?v=1740874000"><span>Speed boost 1.5x</span></div>
+            <div class="legend-row"><img src="assets/loot_cannon.png?v=1740874000"><span>Fast cannon</span></div>
+            <div class="legend-row"><img src="assets/loot_mine.png?v=1740874000"><span>Sea mine</span></div>
+        </div>
+        <p class="hint">Tap to set waypoints<br>Stay out of The Abyss!</p>
+        <div class="btn-row"><button id="start-btn" class="nes-btn is-success" style="width:100%">⚓ START</button></div>
+        <div class="btn-row"><button id="start-lb-btn" class="nes-btn is-warning" style="width:100%">🏆 LEADERBOARD</button></div>
+        <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:4px">
+            <button id="start-name-btn">✏️ Set Name</button>
+            <button id="start-music-btn" style="font-size:8px;color:#aaa;background:transparent;border:1px solid #555;cursor:pointer;padding:4px 8px;">🔊 Music</button>
+        </div>
+    </div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+    <div id="hud-stats" class="nes-container is-dark">
+        <div id="hud-hp">HP: 10/10</div>
+        <div id="hud-alive">⚓ 9 alive</div>
+        <div id="hud-xp">⭐ 0 XP</div>
+        <div id="hud-zone"></div>
+    </div>
+    <div id="hud-actions">
+        <div class="action-btn" id="btn-torpedo">
+            <img src="assets/torpedo_btn.png?v=1740874000">
+            <span class="count" id="torpedo-count">x1</span>
+        </div>
+        <div class="action-btn disabled" id="btn-mine">
+            <img src="assets/mine_btn.png?v=1740874000">
+            <span class="count" id="mine-count">x0</span>
+        </div>
+    </div>
+    <div id="hud-buffs">
+        <div class="buff-icon" id="buff-speed">
+            <img src="assets/loot_speed.png?v=1740874000">
+            <div class="timer" id="speed-timer"></div>
+        </div>
+        <div class="buff-icon" id="buff-cannon">
+            <img src="assets/loot_cannon.png?v=1740874000">
+            <div class="timer" id="cannon-timer"></div>
+        </div>
+    </div>
+</div>
+
+<!-- End Screen -->
+<div id="end-screen">
+    <div class="nes-container is-dark panel">
+        <p class="end-title" id="end-title"></p>
+        <div class="end-stats" id="end-stats"></div>
+        <div class="btn-row"><button id="end-restart-btn" class="nes-btn is-success" style="width:100%">PLAY AGAIN</button></div>
+        <div class="btn-row"><button id="end-lb-btn" class="nes-btn is-warning" style="width:100%">🏆 LEADERBOARD</button></div>
+    </div>
+</div>
+
+<div id="name-overlay" class="hidden">
+    <h1>⚓ SHIP ROYALE ⚓</h1>
+    <p style="color:#aaa;margin-bottom:12px;">Enter your captain name</p>
+    <input id="name-input" class="nes-input" type="text" maxlength="20" placeholder="Captain...">
+    <button id="name-btn" class="nes-btn is-success">SET SAIL</button>
+    <button id="lb-btn-start" class="nes-btn is-warning">🏆 LEADERBOARD</button>
+</div>
+<div id="lb-overlay">
+    <h2>🏆 LEADERBOARD</h2>
+    <div class="lb-tabs">
+        <button id="lb-tab-best" class="active">Best Game</button>
+        <button id="lb-tab-today">Today</button>
+        <button id="lb-tab-alltime">All Time</button>
+    </div>
+    <div id="lb-content" class="lb-table"></div>
+    <button id="lb-close">← Back</button>
+</div>
+<div id="splash">
+    <img src="assets/splash.jpg" alt="Ship Royale">
+    <div id="splash-tap">TAP TO START</div>
+</div>
+<script>
+(function() {
+    var splash = document.getElementById('splash');
+    var tapText = document.getElementById('splash-tap');
+    // Blink the tap text
+    setInterval(function() { tapText.style.opacity = tapText.style.opacity === '0' ? '1' : '0'; }, 600);
+    splash.addEventListener('click', function() {
+        // Unlock iOS audio
+        var ctx = window.AudioContext || window.webkitAudioContext;
+        if (ctx) { var ac = new ctx(); var buf = ac.createBuffer(1, 1, 22050); var src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start(0); }
+        window.AUDIO_UNLOCKED = true;
+        splash.classList.add('fade');
+        setTimeout(function() { splash.remove(); }, 500);
+    });
+    splash.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        splash.click();
+    }, { passive: false });
+})();
+</script>
+<script>
+// --- Username + Leaderboard UI ---
+(function() {
+    var overlay = document.getElementById('name-overlay');
+    var input = document.getElementById('name-input');
+    var btn = document.getElementById('name-btn');
+    var lbBtnStart = document.getElementById('lb-btn-start');
+    var lbOverlay = document.getElementById('lb-overlay');
+    var lbContent = document.getElementById('lb-content');
+    var lbClose = document.getElementById('lb-close');
+    var lbTabBest = document.getElementById('lb-tab-best');
+    var lbTabToday = document.getElementById('lb-tab-today');
+    var lbTabAll = document.getElementById('lb-tab-alltime');
+
+    var playerId = localStorage.getItem('warship_pid');
+    if (!playerId) {
+        playerId = 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        localStorage.setItem('warship_pid', playerId);
+    }
+    window.WARSHIP_PID = playerId;
+
+    var saved = localStorage.getItem('warship_name');
+    if (saved) {
+        window.WARSHIP_PLAYER = saved;
+    } else {
+        overlay.classList.remove('hidden');
+        var sp = document.getElementById('splash');
+        if (sp) sp.remove();
+    }
+
+    window.showNameChange = function() {
+        input.value = window.WARSHIP_PLAYER || '';
+        overlay.classList.remove('hidden');
+    };
+
+    function setName() {
+        var name = input.value.trim().slice(0, 20);
+        if (!name) return;
+        var oldName = window.WARSHIP_PLAYER;
+        localStorage.setItem('warship_name', name);
+        window.WARSHIP_PLAYER = name;
+        overlay.classList.add('hidden');
+        // Update start screen name button
+        var snb = document.getElementById('start-name-btn');
+        if (snb) snb.textContent = '✏️ ' + name;
+        if (oldName && oldName !== name) {
+            fetch('/warship/api/rename', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId: window.WARSHIP_PID, oldName: oldName, newName: name })
+            }).catch(function(){});
+        }
+    }
+    btn.addEventListener('click', setName);
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') setName(); });
+
+    function setActiveTab(active) {
+        [lbTabBest, lbTabToday, lbTabAll].forEach(function(t) { t.classList.remove('active'); });
+        active.classList.add('active');
+    }
+    function showLeaderboard(tab) {
+        var url = tab === 'best' ? '/warship/api/leaderboard/best' : (tab === 'today' ? '/warship/api/leaderboard/today' : '/warship/api/leaderboard');
+        lbContent.innerHTML = '<p style="color:#888;padding:20px;">Loading...</p>';
+        lbOverlay.classList.add('show');
+        fetch(url).then(function(r) { return r.json(); }).then(function(rows) {
+            var html;
+            if (tab === 'best') {
+                html = '<div class="lb-row header"><span class="rank">#</span><span class="name">Captain</span><span class="kills">K</span><span class="avg">XP</span></div>';
+                if (!rows.length) html += '<div class="lb-row"><span style="color:#888;">No scores yet</span></div>';
+                for (var i = 0; i < rows.length; i++) {
+                    var r = rows[i];
+                    var crown = r.won ? ' 👑' : '';
+                    html += '<div class="lb-row"><span class="rank">' + (i+1) + '</span><span class="name">' + r.username + crown + '</span><span class="kills">' + (r.kills||0) + '</span><span class="avg">' + (r.xp||0) + '</span></div>';
+                }
+            } else {
+                html = '<div class="lb-row header"><span class="rank">#</span><span class="name">Captain</span><span class="games">GP</span><span class="kills">K</span><span class="avg">XP</span></div>';
+                if (!rows.length) html += '<div class="lb-row"><span style="color:#888;">No scores yet</span></div>';
+                for (var i = 0; i < rows.length; i++) {
+                    var r = rows[i];
+                    html += '<div class="lb-row"><span class="rank">' + (i+1) + '</span><span class="name">' + r.username + '</span><span class="games">' + (r.games||0) + '</span><span class="kills">' + (r.total_kills||0) + '</span><span class="avg">' + (r.total_xp||0) + '</span></div>';
+                }
+            }
+            lbContent.innerHTML = html;
+        }).catch(function() { lbContent.innerHTML = '<p style="color:#f66;">Failed to load</p>'; });
+    }
+
+    lbBtnStart.addEventListener('click', function() { showLeaderboard('best'); });
+    lbTabBest.addEventListener('click', function() { setActiveTab(lbTabBest); showLeaderboard('best'); });
+    lbTabToday.addEventListener('click', function() { setActiveTab(lbTabToday); showLeaderboard('today'); });
+    lbTabAll.addEventListener('click', function() { setActiveTab(lbTabAll); showLeaderboard('alltime'); });
+    lbClose.addEventListener('click', function() { lbOverlay.classList.remove('show'); });
+
+    window.showWarshipLeaderboard = function() { setActiveTab(lbTabBest); showLeaderboard('best'); };
+})();
+</script>
+<script>
+(function() {
+    // --- Constants ---
+    var MAP_W = 4000, MAP_H = 3200;
+    var MAX_SPEED = 200, MIN_SPEED = 20;
+    var TURN_RATE = 1.8, TURN_RATE_CLOSE = 12.0, CLOSE_DIST = 120, DECEL_DIST = 150;
+    var WAYPOINT_REACH = 25, ISLAND_MARGIN = 80;
+    var AVOIDANCE_RANGE = 100, AVOIDANCE_FORCE = 3.0, MAP_PAD = 50;
+
+    var FIRE_RANGE = 350;
+    var FIRE_COOLDOWN = 1.5;
+    var CANNONBALL_SPEED = 250;
+    var CANNONBALL_DAMAGE = 1;
+    var MAX_HP = 10;
+    var BROADSIDE_ANGLE = Math.PI / 3;
+    var FORWARD_ANGLE = Math.PI / 4;
+
+    var TORPEDO_SPEED = 180;
+    var TORPEDO_DAMAGE = 3;
+    var TORPEDO_BLAST_RADIUS = 120;
+    var TORPEDO_LIFE = 4.0;
+    var TORPEDO_TURN_RATE = 0.8;
+    var STARTING_TORPEDOES = 1;
+
+    var MINE_DAMAGE = 3;
+    var MINE_BLAST_RADIUS = 100;
+    var MINE_LIFETIME = 30;
+    var STARTING_MINES = 0;
+
+    var ENEMY_COUNT = 11;
+    var ENEMY_SPEED_BASE = 70;
+    var ENEMY_TURN_RATE_BASE = 1.2;
+    var ENEMY_WANDER_INTERVAL = 4;
+    var ENEMY_COLORS = [0xff4444, 0x44ff44, 0x4488ff, 0xff44ff, 0xffaa00, 0x00ffcc, 0xff8888, 0xaaaaff, 0xffff44, 0x44ffff, 0xff6600];
+    var ENEMY_NAMES = ['Blackbeard','Bonny','Drake','Kidd','Rackham','Silver','Hook','Barbossa','Calico','Teach','Morgan'];
+
+    var ZONE_PHASES = [
+        { radius: 1500, delay: 30, shrinkTime: 15 },
+        { radius: 1000, delay: 40, shrinkTime: 12 },
+        { radius: 650,  delay: 35, shrinkTime: 10 },
+        { radius: 350,  delay: 30, shrinkTime: 10 },
+        { radius: 120,  delay: 25, shrinkTime: 8 }
+    ];
+    var ZONE_DPS = 1.5;
+
+    var LOOT_TYPES = { T: 0xff4444, H: 0x44ff44, S: 0x4488ff, C: 0xffaa00, M: 0x444444 };
+
+    var islandDefs = [
+        { x: 375,  y: 373,  key: 'island6', scale: 0.8 },
+        { x: 750,  y: 400,  key: 'island1', scale: 0.9 },
+        { x: 1312,  y: 267,  key: 'island1', scale: 0.8 },
+        { x: 1875,  y: 440,  key: 'island6', scale: 0.6 },
+        { x: 2438,  y: 240,  key: 'island3', scale: 0.85 },
+        { x: 3000,  y: 400,  key: 'island2', scale: 0.7 },
+        { x: 3625,  y: 400,  key: 'island2', scale: 0.8 },
+        { x: 438,  y: 773,  key: 'island2', scale: 0.85 },
+        { x: 1000,  y: 907,  key: 'island6', scale: 0.9 },
+        { x: 1625,  y: 733,  key: 'island1', scale: 0.75 },
+        { x: 2188,  y: 893,  key: 'island6', scale: 0.7 },
+        { x: 2750,  y: 773,  key: 'island6', scale: 0.85 },
+        { x: 3375,  y: 880,  key: 'island5', scale: 0.9 },
+        { x: 3875,  y: 733,  key: 'island1', scale: 0.7 },
+        { x: 375,  y: 1227,  key: 'island5', scale: 0.75 },
+        { x: 812,  y: 1360,  key: 'island4', scale: 0.65 },
+        { x: 1375,  y: 1173,  key: 'island1', scale: 0.85 },
+        { x: 1938,  y: 1333,  key: 'island1', scale: 0.9 },
+        { x: 2500,  y: 1227,  key: 'island1', scale: 0.8 },
+        { x: 3062,  y: 1373,  key: 'island2', scale: 0.75 },
+        { x: 3625,  y: 1200,  key: 'island2', scale: 0.85 },
+        { x: 500,  y: 1707,  key: 'island5', scale: 0.8 },
+        { x: 1062,  y: 1827,  key: 'island5', scale: 0.85 },
+        { x: 1688,  y: 1667,  key: 'island1', scale: 0.75 },
+        { x: 2250,  y: 1840,  key: 'island5', scale: 0.7 },
+        { x: 2812,  y: 1693,  key: 'island2', scale: 0.9 },
+        { x: 3375,  y: 1813,  key: 'island6', scale: 0.75 },
+        { x: 3875,  y: 1667,  key: 'island6', scale: 0.65 },
+        { x: 438,  y: 2133,  key: 'island6', scale: 0.8 },
+        { x: 875,  y: 2293,  key: 'island5', scale: 0.75 },
+        { x: 1438,  y: 2107,  key: 'island4', scale: 0.9 },
+        { x: 2000,  y: 2267,  key: 'island2', scale: 0.7 },
+        { x: 2562,  y: 2160,  key: 'island4', scale: 0.85 },
+        { x: 3125,  y: 2307,  key: 'island5', scale: 0.7 },
+        { x: 3688,  y: 2133,  key: 'island3', scale: 0.8 },
+        { x: 562,  y: 2600,  key: 'island7', scale: 0.85 },
+        { x: 1188,  y: 2747,  key: 'island7', scale: 0.9 },
+        { x: 1812,  y: 2560,  key: 'island1', scale: 0.7 },
+        { x: 2375,  y: 2733,  key: 'island7', scale: 0.8 },
+        { x: 2938,  y: 2600,  key: 'island7', scale: 0.85 },
+        { x: 3500,  y: 2773,  key: 'island2', scale: 0.75 },
+        { x: 438,  y: 2933,  key: 'island6', scale: 0.7 },
+        { x: 1000,  y: 2933,  key: 'island4', scale: 0.8 },
+        { x: 1625,  y: 2867,  key: 'island3', scale: 0.75 },
+        { x: 2250,  y: 2960,  key: 'island3', scale: 0.65 },
+        { x: 2875,  y: 2880,  key: 'island2', scale: 0.8 },
+        { x: 3500,  y: 2933,  key: 'island2', scale: 0.7 },
+    ];
+
+    // --- State ---
+    var islandCircles = [];
+    var ship, scene;
+    var enemies = [];
+    var waypoints = [], waypointMarkers = [], routeGraphics;
+    var cannonballs = [];
+    var torpedoes = [];
+    var combatGraphics, zoneGraphics, minimapGraphics;
+    var lootCrates = [];
+    var blastEffects = [];
+
+    var playerHP = MAX_HP;
+    var playerFireTimer = 0;
+    var playerTorpedoCount = STARTING_TORPEDOES;
+    var playerMineCount = STARTING_MINES;
+    var activeMines = [];
+    var seaMonsters = [];
+    var playerSpeedMult = 1.0;
+    var playerSpeedTimer = 0;
+    var playerFireMult = 1.0;
+    var playerFireTimer2 = 0;
+    var playerKills = 0;
+    var playerDmgDealt = 0;
+    var playerTorpsFired = 0;
+
+    // DOM references for HUD
+    var domHp = document.getElementById('hud-hp');
+    var domAlive = document.getElementById('hud-alive');
+    var domXp = document.getElementById('hud-xp');
+    var domZone = document.getElementById('hud-zone');
+    var domTorpedoCount = document.getElementById('torpedo-count');
+    var domMineCount = document.getElementById('mine-count');
+    var domBtnTorpedo = document.getElementById('btn-torpedo');
+    var domBtnMine = document.getElementById('btn-mine');
+    var domBuffSpeed = document.getElementById('buff-speed');
+    var domBuffCannon = document.getElementById('buff-cannon');
+    var domSpeedTimer = document.getElementById('speed-timer');
+    var domCannonTimer = document.getElementById('cannon-timer');
+    var domStartScreen = document.getElementById('start-screen');
+    var domHud = document.getElementById('hud');
+    var domEndScreen = document.getElementById('end-screen');
+    var domEndTitle = document.getElementById('end-title');
+    var domEndStats = document.getElementById('end-stats');
+
+    // Zone state
+    var zonePhase = 0;
+    var zoneTimer = 0;
+    var zoneShrinking = false;
+    var zoneCurRadius = 1500;
+    var zoneTargetRadius = 1500;
+    var zoneCX = MAP_W / 2, zoneCY = MAP_H / 2;
+    var zoneTargetCX = MAP_W / 2, zoneTargetCY = MAP_H / 2;
+    var zoneShrinkSpeed = 0;
+
+    var elimFeed = [];
+
+    var gameOver = false;
+    var gameStarted = false;
+    var gameTime = 0;
+    var healthSpawnTimer = 0;
+    var aliveCount = ENEMY_COUNT + 1;
+    var bgMusic;
+    var musicMuted = localStorage.getItem('warship_music_muted') === '1';
+    var playerXP = 0;
+    var playerHits = 0;
+    var playerName = '';
+    var API_BASE = '/warship/api';
+    var cheerQueue = [];
+    function shuffleCheers() {
+        var arr = ['sfx_cheer1','sfx_cheer2','sfx_cheer3','sfx_cheer4'];
+        // Fisher-Yates shuffle
+        for (var i = arr.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+        }
+        // If first of new shuffle matches last played, swap first two
+        if (cheerQueue.length > 0 && arr[0] === cheerQueue[cheerQueue.length - 1]) {
+            var tmp = arr[0]; arr[0] = arr[1]; arr[1] = tmp;
+        }
+        return arr;
+    }
+
+    // --- UI click sound helper ---
+    function playClick() { try { scene.sound.play('sfx_click', { volume: 0.5 }); } catch(e) {} }
+
+    // --- Wire up HTML buttons ---
+    // Update start screen name button
+    var startNameBtn = document.getElementById('start-name-btn');
+    if (window.WARSHIP_PLAYER) startNameBtn.textContent = '✏️ ' + window.WARSHIP_PLAYER;
+    startNameBtn.addEventListener('click', function(e) { e.stopPropagation(); playClick(); if (window.showNameChange) window.showNameChange(); });
+
+    var musicBtn = document.getElementById('start-music-btn');
+    function updateMusicBtn() { musicBtn.textContent = musicMuted ? '🔇 Music' : '🔊 Music'; }
+    updateMusicBtn();
+    musicBtn.addEventListener('click', function(e) {
+        e.stopPropagation(); playClick();
+        musicMuted = !musicMuted;
+        localStorage.setItem('warship_music_muted', musicMuted ? '1' : '0');
+        updateMusicBtn();
+        if (bgMusic) { bgMusic.setMute(musicMuted); }
+    });
+
+    document.getElementById('start-lb-btn').addEventListener('click', function(e) { e.stopPropagation(); playClick(); if (window.showWarshipLeaderboard) window.showWarshipLeaderboard(); });
+
+    document.getElementById('start-btn').addEventListener('click', function(e) {
+        e.stopPropagation();
+        gameStarted = true;
+        window.GAME_STARTED = true;
+        if (bgMusic) bgMusic.setVolume(0.22);
+        playClick();
+        var startVoices = ['sfx_start1','sfx_start2','sfx_start3','sfx_start4'];
+        scene.sound.play(startVoices[Math.floor(Math.random()*startVoices.length)], { volume: 0.9 });
+        domStartScreen.classList.add('hidden');
+        domHud.classList.add('show');
+    });
+
+    // Block touch events on action buttons from reaching Phaser canvas
+    document.getElementById('hud-actions').addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: false });
+    document.getElementById('hud-actions').addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+    document.getElementById('hud-stats').addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: false });
+    document.getElementById('hud-stats').addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+
+    domBtnTorpedo.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (gameOver || !gameStarted || playerTorpedoCount <= 0 || playerHP <= 0) return;
+        playClick();
+        var nearest = findNearestTarget(ship.x, ship.y, -1);
+        if (!nearest) return;
+        var angle = Math.atan2(nearest.y - ship.y, nearest.x - ship.x);
+        var tSprite = scene.add.image(ship.x, ship.y, 'torpedo').setDepth(5).setRotation(angle);
+        torpedoes.push({ x: ship.x, y: ship.y, vx: Math.cos(angle)*TORPEDO_SPEED, vy: Math.sin(angle)*TORPEDO_SPEED, rotation: angle, owner: -1, targetIdx: nearest.idx, life: TORPEDO_LIFE, sprite: tSprite });
+        playerTorpedoCount--; playerTorpsFired++;
+        domTorpedoCount.textContent = 'x' + playerTorpedoCount;
+        if (playerTorpedoCount <= 0) domBtnTorpedo.classList.add('disabled');
+    });
+
+    domBtnMine.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (gameOver || !gameStarted || playerMineCount <= 0 || playerHP <= 0) return;
+        playClick();
+        var mSprite = scene.add.image(ship.x, ship.y, 'mine').setDepth(5).setScale(1.2);
+        scene.tweens.add({ targets: mSprite, y: ship.y - 3, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        activeMines.push({ x: ship.x, y: ship.y, owner: -1, life: MINE_LIFETIME, sprite: mSprite, armTimer: 1.0 });
+        playerMineCount--;
+        domMineCount.textContent = 'x' + playerMineCount;
+        if (playerMineCount <= 0) domBtnMine.classList.add('disabled');
+    });
+
+    document.getElementById('end-restart-btn').addEventListener('click', function() {
+        playClick();
+        if (bgMusic) bgMusic.setVolume(0.35);
+        scene.scene.restart();
+        resetState();
+        domEndScreen.classList.remove('show');
+        domHud.classList.remove('show');
+        domStartScreen.classList.remove('hidden');
+    });
+
+    document.getElementById('end-lb-btn').addEventListener('click', function() { playClick(); if (window.showWarshipLeaderboard) window.showWarshipLeaderboard(); });
+
+    var config = {
+        type: Phaser.AUTO,
+        scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH, width: '100%', height: '100%' },
+        physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+        scene: { preload: preload, create: create, update: update },
+        input: { activePointers: 2 },
+    };
+
+    var game = new Phaser.Game(config);
+
+    // ===== PATHFINDING =====
+    function segmentHitsCircle(ax,ay,bx,by,cx,cy,r){var dx=bx-ax,dy=by-ay,fx=ax-cx,fy=ay-cy,a=dx*dx+dy*dy;if(a<.001)return fx*fx+fy*fy<r*r;var b=2*(fx*dx+fy*dy),c=fx*fx+fy*fy-r*r,disc=b*b-4*a*c;if(disc<0)return false;var sq=Math.sqrt(disc),t1=(-b-sq)/(2*a),t2=(-b+sq)/(2*a);return(t1>=0&&t1<=1)||(t2>=0&&t2<=1)||(t1<0&&t2>1)}
+    function findBlockingIsland(ax,ay,bx,by){for(var i=0;i<islandCircles.length;i++){var s=islandCircles[i];if(segmentHitsCircle(ax,ay,bx,by,s.x,s.y,s.r))return s}return null}
+    function getBypassPoints(ax,ay,bx,by,isl){var dx=bx-ax,dy=by-ay,len=Math.sqrt(dx*dx+dy*dy);if(len<1)return[{x:bx,y:by}];var nx=-dy/len,ny=dx/len,br=isl.r+ISLAND_MARGIN,p1={x:isl.x+nx*br,y:isl.y+ny*br},p2={x:isl.x-nx*br,y:isl.y-ny*br},d1=Phaser.Math.Distance.Between(ax,ay,p1.x,p1.y)+Phaser.Math.Distance.Between(p1.x,p1.y,bx,by),d2=Phaser.Math.Distance.Between(ax,ay,p2.x,p2.y)+Phaser.Math.Distance.Between(p2.x,p2.y,bx,by);return d1<=d2?[p1]:[p2]}
+    function resolveSegment(ax,ay,bx,by,d){if(d>3)return[{x:bx,y:by}];var isl=findBlockingIsland(ax,ay,bx,by);if(!isl)return[{x:bx,y:by}];var bp=getBypassPoints(ax,ay,bx,by,isl)[0];return resolveSegment(ax,ay,bp.x,bp.y,d+1).concat(resolveSegment(bp.x,bp.y,bx,by,d+1))}
+    function planPath(fx,fy,tx,ty){return resolveSegment(fx,fy,tx,ty,0)}
+
+    // ===== AVOIDANCE =====
+    function getAvoidanceSteer(sx,sy){var stX=0,stY=0;for(var i=0;i<islandCircles.length;i++){var isl=islandCircles[i],dx=sx-isl.x,dy=sy-isl.y,dist=Math.sqrt(dx*dx+dy*dy),ed=dist-isl.r;if(ed<AVOIDANCE_RANGE&&dist>.1){var str=Math.pow(1-Math.max(ed,0)/AVOIDANCE_RANGE,2)*AVOIDANCE_FORCE;if(ed<0)str=AVOIDANCE_FORCE*5;stX+=(dx/dist)*str;stY+=(dy/dist)*str}}var er=AVOIDANCE_RANGE;if(sx<er)stX+=Math.pow(1-sx/er,2)*AVOIDANCE_FORCE;if(sx>MAP_W-er)stX-=Math.pow(1-(MAP_W-sx)/er,2)*AVOIDANCE_FORCE;if(sy<er)stY+=Math.pow(1-sy/er,2)*AVOIDANCE_FORCE;if(sy>MAP_H-er)stY-=Math.pow(1-(MAP_H-sy)/er,2)*AVOIDANCE_FORCE;return{x:stX,y:stY}}
+    function enforceOutsideIslands(sx,sy){var px=sx,py=sy;px=Math.max(MAP_PAD,Math.min(MAP_W-MAP_PAD,px));py=Math.max(MAP_PAD,Math.min(MAP_H-MAP_PAD,py));for(var pass=0;pass<2;pass++)for(var i=0;i<islandCircles.length;i++){var isl=islandCircles[i],dx=px-isl.x,dy=py-isl.y,dist=Math.sqrt(dx*dx+dy*dy),mn=isl.r+10;if(dist<mn){if(dist<.1)px=isl.x+mn;else{px=isl.x+(dx/dist)*mn;py=isl.y+(dy/dist)*mn}}}return{x:px,y:py}}
+
+    // ===== COMBAT HELPERS =====
+    function canFire(shipObj, targetX, targetY) {
+        var angleToTarget = Math.atan2(targetY - shipObj.y, targetX - shipObj.x);
+        var relAngle = Math.abs(Phaser.Math.Angle.Wrap(angleToTarget - shipObj.rotation));
+        if (relAngle < FORWARD_ANGLE) return true;
+        var lo = Math.PI / 2 - BROADSIDE_ANGLE, hi = Math.PI / 2 + BROADSIDE_ANGLE;
+        if ((relAngle > lo && relAngle < hi) || (relAngle > Math.PI - hi && relAngle < Math.PI - lo)) return true;
+        return false;
+    }
+    function getFireAngle(shipObj, targetX, targetY) {
+        var angleToTarget = Math.atan2(targetY - shipObj.y, targetX - shipObj.x);
+        var relAngle = Phaser.Math.Angle.Wrap(angleToTarget - shipObj.rotation);
+        if (Math.abs(relAngle) < FORWARD_ANGLE) return angleToTarget;
+        return relAngle > 0 ? shipObj.rotation + Math.PI / 2 : shipObj.rotation - Math.PI / 2;
+    }
+    function hasLineOfSight(ax, ay, bx, by) {
+        for (var i = 0; i < islandCircles.length; i++) {
+            if (segmentHitsCircle(ax, ay, bx, by, islandCircles[i].x, islandCircles[i].y, islandCircles[i].r)) return false;
+        }
+        return true;
+    }
+    function spawnCannonball(sx, sy, angle, ownerIdx) {
+        cannonballs.push({ x: sx, y: sy, vx: Math.cos(angle) * CANNONBALL_SPEED, vy: Math.sin(angle) * CANNONBALL_SPEED, owner: ownerIdx, life: 2.0 });
+        if (scene && ship) {
+            var d = Phaser.Math.Distance.Between(sx, sy, ship.x, ship.y);
+            if (d < 600) scene.sound.play('sfx_cannon', { volume: Math.max(0.05, 0.4 * (1 - d / 600)) });
+        }
+    }
+
+    function moveShip(obj, targetX, targetY, spd, turnRate, dt) {
+        var dist = Phaser.Math.Distance.Between(obj.x, obj.y, targetX, targetY);
+        var desiredAngle = Math.atan2(targetY - obj.y, targetX - obj.x);
+        var av = getAvoidanceSteer(obj.x, obj.y);
+        if (av.x !== 0 || av.y !== 0) {
+            var aAngle = Math.atan2(av.y, av.x), aStr = Math.sqrt(av.x*av.x + av.y*av.y);
+            var blend = Math.min(aStr / AVOIDANCE_FORCE, 0.85);
+            desiredAngle = Math.atan2(Math.sin(desiredAngle)*(1-blend) + Math.sin(aAngle)*blend, Math.cos(desiredAngle)*(1-blend) + Math.cos(aAngle)*blend);
+        }
+        var diff = Phaser.Math.Angle.Wrap(desiredAngle - obj.rotation);
+        obj.rotation += Phaser.Math.Clamp(diff, -turnRate * dt, turnRate * dt);
+        obj.vx = Math.cos(obj.rotation) * spd;
+        obj.vy = Math.sin(obj.rotation) * spd;
+        var safe = enforceOutsideIslands(obj.x + obj.vx * dt, obj.y + obj.vy * dt);
+        obj.x = Phaser.Math.Clamp(safe.x, 0, MAP_W);
+        obj.y = Phaser.Math.Clamp(safe.y, 0, MAP_H);
+        return dist;
+    }
+
+    function findNearestTarget(fromX, fromY, excludeIdx) {
+        var best = null, bestDist = Infinity;
+        if (excludeIdx !== -1 && playerHP > 0) {
+            var d = Phaser.Math.Distance.Between(fromX, fromY, ship.x, ship.y);
+            if (d < bestDist) { bestDist = d; best = { x: ship.x, y: ship.y, idx: -1 }; }
+        }
+        for (var i = 0; i < enemies.length; i++) {
+            if (i === excludeIdx || enemies[i].hp <= 0) continue;
+            var d2 = Phaser.Math.Distance.Between(fromX, fromY, enemies[i].x, enemies[i].y);
+            if (d2 < bestDist) { bestDist = d2; best = { x: enemies[i].x, y: enemies[i].y, idx: i, dist: d2 }; }
+        }
+        if (best) best.dist = bestDist;
+        return best;
+    }
+
+    function addElimMessage(victimName, victimColor, killerName, killerColor) {
+        if (!scene) return;
+        var camW = scene.cameras.main.width;
+        var msg = killerName + ' sank ' + victimName + '!';
+        var yOff = 0;
+        for (var ef = 0; ef < elimFeed.length; ef++) { if (elimFeed[ef].obj) yOff += 28; }
+        var txt = scene.add.text(camW / 2, 100 + yOff, msg, {
+            fontSize: '18px', fontFamily: 'monospace', fontStyle: 'bold',
+            color: killerColor, stroke: '#000000', strokeThickness: 4
+        }).setScrollFactor(0).setDepth(200).setOrigin(0.5, 0.5).setAlpha(1);
+        scene.tweens.add({
+            targets: txt, alpha: 0, y: txt.y - 20,
+            duration: 3000, delay: 1000, ease: 'Power2',
+            onComplete: function() { txt.destroy(); }
+        });
+        elimFeed.push({ obj: txt, timer: 4.0 });
+    }
+
+    function spawnLootAt(x, y, count) {
+        var types = ['T','H','S','C','M'];
+        for (var i = 0; i < count; i++) {
+            var type = types[Math.floor(Math.random() * types.length)];
+            var lx = x + (Math.random() - 0.5) * 60;
+            var ly = y + (Math.random() - 0.5) * 60;
+            createLootCrate(lx, ly, type);
+        }
+    }
+
+    function createLootCrate(lx, ly, type) {
+        var sprite = scene.add.image(lx, ly, 'loot_' + type).setDepth(6).setScale(1.2);
+        scene.tweens.add({ targets: sprite, y: ly - 4, duration: 1000 + Math.random() * 300, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        lootCrates.push({ x: lx, y: ly, type: type, sprite: sprite });
+    }
+
+    // ===== PRELOAD =====
+    function preload() {
+        this.load.image('ship', 'assets/ship2.png?v=1740874000');
+        this.load.image('water', 'assets/water.png?v=1740874000');
+        this.load.image('torpedo', 'assets/torpedo.png');
+        this.load.image('kraken1', 'assets/kraken1.png?v=2');
+        this.load.image('kraken2', 'assets/kraken2.png?v=2');
+        this.load.image('serpent1', 'assets/serpent1.png?v=2');
+        this.load.image('serpent2', 'assets/serpent2.png?v=2');
+        this.load.image('torpedo_btn', 'assets/torpedo_btn.png?v=1740874000');
+        this.load.image('mine', 'assets/mine.png?v=1740874000');
+        this.load.image('mine_btn', 'assets/mine_btn.png?v=1740874000');
+        this.load.image('loot_M', 'assets/loot_mine.png?v=1740874000');
+        this.load.image('loot_T', 'assets/loot_torpedo.png?v=1740874000');
+        this.load.image('loot_H', 'assets/loot_heal.png?v=1740874000');
+        this.load.image('loot_S', 'assets/loot_speed.png?v=1740874000');
+        this.load.image('loot_C', 'assets/loot_cannon.png?v=1740874000');
+        this.load.audio('sfx_sink', 'assets/sfx_sink.mp3');
+        this.load.audio('sfx_victory', 'assets/sfx_victory.mp3');
+        this.load.audio('sfx_defeat', 'assets/sfx_defeat.mp3');
+        this.load.audio('sfx_cheer1', 'assets/sfx_cheer1.mp3');
+        this.load.audio('sfx_cheer2', 'assets/sfx_cheer2.mp3');
+        this.load.audio('sfx_cheer3', 'assets/sfx_cheer3.mp3');
+        this.load.audio('sfx_cheer4', 'assets/sfx_cheer4.mp3');
+        this.load.audio('sfx_pickup', 'assets/sfx_pickup.mp3');
+        this.load.audio('sfx_music', 'assets/sfx_music.mp3');
+        this.load.audio('sfx_heal', 'assets/sfx_heal.mp3');
+        this.load.audio('sfx_speed', 'assets/sfx_speed.mp3');
+        this.load.audio('sfx_cannon', 'assets/sfx_cannon.mp3');
+        this.load.audio('sfx_mine', 'assets/sfx_mine.mp3');
+        this.load.audio('sfx_torpedo', 'assets/sfx_torpedo.mp3');
+        this.load.audio('sfx_start1', 'assets/sfx_start1.mp3');
+        this.load.audio('sfx_start2', 'assets/sfx_start2.mp3');
+        this.load.audio('sfx_start3', 'assets/sfx_start3.mp3');
+        this.load.audio('sfx_start4', 'assets/sfx_start4.mp3');
+        this.load.audio('sfx_click', 'assets/sfx_click.mp3');
+        this.load.audio('sfx_kraken', 'assets/sfx_kraken.mp3');
+        for (var i = 1; i <= 7; i++) this.load.image('island' + i, 'assets/island' + i + '.png?v=1740874000');
+    }
+
+    // ===== CREATE =====
+    function create() {
+        scene = this;
+
+        var wImg = this.textures.get('water').getSourceImage();
+        var tw = wImg.width, th = wImg.height;
+        for (var x = 0; x < MAP_W; x += tw)
+            for (var y = 0; y < MAP_H; y += th)
+                this.add.image(x + tw/2, y + th/2, 'water');
+
+        zoneGraphics = this.add.graphics().setDepth(3);
+        routeGraphics = this.add.graphics().setDepth(4);
+        combatGraphics = this.add.graphics().setDepth(15);
+        minimapGraphics = this.add.graphics().setScrollFactor(0).setDepth(150);
+
+        islandDefs.forEach(function(def) {
+            var img = scene.add.image(def.x, def.y, def.key).setScale(def.scale);
+            islandCircles.push({ x: def.x, y: def.y, r: img.displayWidth * 0.45 });
+        });
+
+        // Scatter loot randomly within initial zone, avoiding islands
+        var initRadius = ZONE_PHASES[0] ? 1500 : zoneCurRadius;
+        for (var li = 0; li < 30; li++) {
+            var lx, ly, valid;
+            for (var attempt = 0; attempt < 20; attempt++) {
+                var la = Math.random() * Math.PI * 2;
+                var lr = Math.random() * (initRadius - 50);
+                lx = MAP_W / 2 + Math.cos(la) * lr;
+                ly = MAP_H / 2 + Math.sin(la) * lr;
+                valid = true;
+                for (var ci = 0; ci < islandCircles.length; ci++) {
+                    if (Phaser.Math.Distance.Between(lx, ly, islandCircles[ci].x, islandCircles[ci].y) < islandCircles[ci].r + 30) { valid = false; break; }
+                }
+                if (valid) break;
+            }
+            if (valid) createLootCrate(lx, ly, ['T','S','C','M'][Math.floor(Math.random()*4)]);
+        }
+
+        // Player at 6 o'clock (bottom), enemies fill the other 11 positions
+        var playerAngle = Math.PI / 2; // 6 o'clock
+        var px = MAP_W / 2 + Math.cos(playerAngle) * 1400;
+        var py = MAP_H / 2 + Math.sin(playerAngle) * 1200;
+        px = Phaser.Math.Clamp(px, 150, MAP_W - 150);
+        py = Phaser.Math.Clamp(py, 150, MAP_H - 150);
+        ship = scene.add.image(px, py, 'ship').setDepth(10);
+        ship.vx = 0; ship.vy = 0; ship.rotation = Math.atan2(MAP_H/2 - py, MAP_W/2 - px);
+
+        for (var ei = 0; ei < ENEMY_COUNT; ei++) {
+            var ea = ((ei + 1) / 12) * Math.PI * 2 + Math.PI / 2; // skip slot 0 (player at 6 o'clock)
+            var ex = MAP_W / 2 + Math.cos(ea) * 1400;
+            var ey = MAP_H / 2 + Math.sin(ea) * 1200;
+            ex = Phaser.Math.Clamp(ex, 150, MAP_W - 150);
+            ey = Phaser.Math.Clamp(ey, 150, MAP_H - 150);
+            var eSprite = scene.add.image(ex, ey, 'ship').setDepth(10).setTint(ENEMY_COLORS[ei]);
+            eSprite.vx = 0; eSprite.vy = 0; eSprite.rotation = Math.atan2(MAP_H/2 - ey, MAP_W/2 - ex);
+            var aggressive = (ei % 3 === 0);
+            var eHPBarBg = scene.add.rectangle(0, 0, 50, 6, 0x333333).setDepth(20).setOrigin(0.5, 0.5);
+            var eHPBar = scene.add.rectangle(0, 0, 50, 6, ENEMY_COLORS[ei]).setDepth(21).setOrigin(0, 0.5);
+            enemies.push({
+                sprite: eSprite, x: ex, y: ey, vx: 0, vy: 0, rotation: eSprite.rotation,
+                hp: MAX_HP, fireTimer: Math.random() * FIRE_COOLDOWN,
+                color: ENEMY_COLORS[ei], name: ENEMY_NAMES[ei], idx: ei,
+                aggressive: aggressive, wanderTarget: null, wanderTimer: 0,
+                torpedoes: Math.random() < 0.3 ? 1 : 0,
+                hpBarBg: eHPBarBg, hpBar: eHPBar,
+                speedMult: 0.9 + Math.random() * 0.3,
+                lastAttacker: -2
+            });
+        }
+
+        // Spawn sea monsters outside the initial zone, avoiding islands
+        seaMonsters = [];
+        var monsterTypes = ['kraken', 'serpent'];
+        var initZoneR = ZONE_PHASES[0] ? ZONE_PHASES[0].radius : 1500;
+        for (var smi = 0; smi < 8; smi++) {
+            var mx, my, mValid;
+            for (var ma = 0; ma < 30; ma++) {
+                var mAngle = (smi / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+                var mDist = initZoneR + 150 + Math.random() * 300;
+                mx = MAP_W/2 + Math.cos(mAngle) * mDist;
+                my = MAP_H/2 + Math.sin(mAngle) * mDist;
+                mx = Phaser.Math.Clamp(mx, 80, MAP_W - 80);
+                my = Phaser.Math.Clamp(my, 80, MAP_H - 80);
+                mValid = true;
+                for (var mci = 0; mci < islandCircles.length; mci++) {
+                    if (Phaser.Math.Distance.Between(mx, my, islandCircles[mci].x, islandCircles[mci].y) < islandCircles[mci].r + 80) { mValid = false; break; }
+                }
+                if (mValid) break;
+            }
+            if (!mValid) continue;
+            var mType = monsterTypes[smi % 2];
+            var ms1 = scene.add.image(mx, my, mType + '1').setDepth(2).setScale(0.7).setAlpha(0.85);
+            var ms2 = scene.add.image(mx, my, mType + '2').setDepth(2).setScale(0.7).setAlpha(0).setVisible(false);
+            seaMonsters.push({ s1: ms1, s2: ms2, x: mx, y: my, frame: 0, timer: Math.random() * 2 });
+        }
+
+        // Camera
+        scene.cameras.main.setBounds(0, 0, MAP_W, MAP_H);
+        scene.cameras.main.startFollow(ship, true, 0.08, 0.08);
+
+        // Click to add waypoint
+        this.input.on('pointerdown', function(pointer) {
+            if (gameOver || !gameStarted) return;
+            // Block clicks on minimap area (top-right)
+            var mmW2 = 140, mmH2 = Math.round(mmW2 * MAP_H / MAP_W);
+            if (pointer.x > scene.cameras.main.width - mmW2 - 15 && pointer.y < mmH2 + 15) return;
+            var wp = scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
+            wp.x = Phaser.Math.Clamp(wp.x, MAP_PAD + 20, MAP_W - MAP_PAD - 20);
+            wp.y = Phaser.Math.Clamp(wp.y, MAP_PAD + 20, MAP_H - MAP_PAD - 20);
+            for (var i = 0; i < islandCircles.length; i++) {
+                var isl = islandCircles[i];
+                if ((wp.x-isl.x)*(wp.x-isl.x)+(wp.y-isl.y)*(wp.y-isl.y) < isl.r*isl.r) return;
+            }
+            var fx, fy;
+            if (waypoints.length > 0) { var l = waypoints[waypoints.length-1]; fx=l.x; fy=l.y; }
+            else { fx=ship.x; fy=ship.y; }
+            var pts = planPath(fx, fy, wp.x, wp.y);
+            if (pts.length > 6) pts = [pts[0], pts[pts.length - 1]];
+            for (var p = 0; p < pts.length && waypoints.length < 12; p++) {
+                waypoints.push(pts[p]);
+                var dot = scene.add.circle(pts[p].x, pts[p].y, p===pts.length-1?5:3, 0xffff00, p===pts.length-1?0.85:0.35).setDepth(5);
+                waypointMarkers.push(dot);
+            }
+            drawRoute();
+        });
+
+        // Keyboard hotkeys (A = torpedo, S = mine)
+        this.input.keyboard.on('keydown-A', function() {
+            document.getElementById('btn-torpedo').click();
+        });
+        this.input.keyboard.on('keydown-S', function() {
+            document.getElementById('btn-mine').click();
+        });
+
+        // Background music
+        // Resume audio context (iOS requires user gesture)
+        if (scene.sound.context && scene.sound.context.state === 'suspended') {
+            scene.sound.context.resume();
+        }
+        if (!bgMusic) {
+            bgMusic = scene.sound.add('sfx_music', { loop: true, volume: 0.35 });
+            bgMusic.setMute(musicMuted);
+            bgMusic.play();
+        }
+
+        // Init zone
+        zonePhase = 0;
+        zoneTimer = ZONE_PHASES[0].delay;
+        zoneCurRadius = 1500;
+        zoneTargetRadius = 1500;
+        zoneCX = MAP_W / 2; zoneCY = MAP_H / 2;
+        zoneTargetCX = MAP_W / 2; zoneTargetCY = MAP_H / 2;
+
+        // Reset HUD DOM state
+        domHp.textContent = 'HP: ' + MAX_HP + '/' + MAX_HP;
+        domHp.style.color = '#00ff00';
+        domAlive.textContent = '⚓ ' + (aliveCount - 1) + ' enemies';
+        domXp.textContent = '⭐ 0 XP';
+        domZone.textContent = '';
+        domTorpedoCount.textContent = 'x' + playerTorpedoCount;
+        domMineCount.textContent = 'x' + playerMineCount;
+        if (playerTorpedoCount > 0) domBtnTorpedo.classList.remove('disabled'); else domBtnTorpedo.classList.add('disabled');
+        if (playerMineCount > 0) domBtnMine.classList.remove('disabled'); else domBtnMine.classList.add('disabled');
+        domBuffSpeed.classList.remove('active');
+        domBuffCannon.classList.remove('active');
+    }
+
+    function resetState() {
+        for (var ti = 0; ti < torpedoes.length; ti++) { if (torpedoes[ti].sprite) torpedoes[ti].sprite.destroy(); }
+        for (var mi = 0; mi < activeMines.length; mi++) { if (activeMines[mi].sprite) activeMines[mi].sprite.destroy(); }
+        for (var smi = 0; smi < seaMonsters.length; smi++) { seaMonsters[smi].s1.destroy(); seaMonsters[smi].s2.destroy(); }
+        enemies = []; cannonballs = []; torpedoes = []; lootCrates = []; blastEffects = []; elimFeed = [];
+        waypoints = []; waypointMarkers = [];
+        playerHP = MAX_HP; playerFireTimer = 0; playerTorpedoCount = STARTING_TORPEDOES;
+        playerSpeedMult = 1.0; playerSpeedTimer = 0; playerFireMult = 1.0;
+        playerMineCount = STARTING_MINES; activeMines = [];
+        playerKills = 0; playerDmgDealt = 0; playerTorpsFired = 0; playerXP = 0; playerHits = 0; cheerQueue = [];
+        gameOver = false; gameStarted = false; gameTime = 0; healthSpawnTimer = 0;
+        aliveCount = ENEMY_COUNT + 1; zonePhase = 0; islandCircles = [];
+    }
+
+    function clearMarkers(){waypointMarkers.forEach(function(m){m.destroy()});waypointMarkers=[];if(routeGraphics)routeGraphics.clear()}
+
+    function drawRoute() {
+        routeGraphics.clear();
+        if (waypoints.length === 0) return;
+        routeGraphics.lineStyle(2, 0xffff00, 0.5);
+        routeGraphics.beginPath(); routeGraphics.moveTo(ship.x, ship.y);
+        for (var i = 0; i < waypoints.length; i++) routeGraphics.lineTo(waypoints[i].x, waypoints[i].y);
+        routeGraphics.strokePath();
+    }
+
+    function showEndScreen(won) {
+        gameOver = true;
+        if (bgMusic) bgMusic.setVolume(0.3);
+        if (scene) scene.sound.play(won ? 'sfx_victory' : 'sfx_defeat', { volume: 0.9 });
+        var place = won ? 1 : aliveCount + 1;
+        var placementBonus = (ENEMY_COUNT + 1 - place) * 50;
+        playerXP += placementBonus;
+        if (won) playerXP += 500;
+        var title = won ? '🏴‍☠️ VICTORY ROYALE 🏴‍☠️' : '💀 DEFEATED';
+        if (!won) title += '\n' + getPlaceStr(place);
+        domEndTitle.textContent = title;
+        var mins = Math.floor(gameTime / 60), secs = Math.floor(gameTime % 60);
+        var prevBest = parseInt(localStorage.getItem('warship_best_xp') || '0', 10);
+        var isNewRecord = playerXP > prevBest;
+        if (isNewRecord) localStorage.setItem('warship_best_xp', '' + playerXP);
+        var recordLabel = isNewRecord
+            ? '<span style="color:#ff5555">🏆 NEW RECORD!</span>'
+            : '<span style="color:#aaa">Record: ' + prevBest + ' XP</span>';
+        domEndStats.innerHTML =
+            'Kills: ' + playerKills +
+            '<br>Hits: ' + playerHits +
+            '<br>Torpedoes: ' + playerTorpsFired +
+            '<br>Time: ' + mins + 'm ' + secs + 's' +
+            '<br><br><span style="color:#ffcc00">⭐ ' + playerXP + ' XP</span>' +
+            '<br>' + recordLabel;
+        domHud.classList.remove('show');
+        domEndScreen.classList.add('show');
+
+        playerName = window.WARSHIP_PLAYER || 'Anonymous';
+        fetch(API_BASE + '/score', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: playerName, playerId: window.WARSHIP_PID, xp: playerXP, kills: playerKills,
+                hits: playerHits, torpedoesFired: playerTorpsFired,
+                placement: place, won: won, gameTime: gameTime
+            })
+        }).catch(function(){});
+    }
+
+    function getPlaceStr(n) {
+        if (n === 1) return '1st place';
+        if (n === 2) return '2nd place';
+        if (n === 3) return '3rd place';
+        return n + 'th place';
+    }
+
+    function sinkShip(sprite, onComplete) {
+        if (ship) { var sd = Phaser.Math.Distance.Between(sprite.x, sprite.y, ship.x, ship.y); scene.sound.play('sfx_sink', { volume: Math.min(1, Math.max(0.2, 1 - sd / 800)) }); }
+        scene.tweens.add({
+            targets: sprite,
+            scaleX: 0.3, scaleY: 0.3,
+            angle: sprite.angle + 120,
+            alpha: 0,
+            duration: 1500,
+            ease: 'Power2',
+            onComplete: function() {
+                sprite.setVisible(false);
+                if (onComplete) onComplete();
+            }
+        });
+        for (var bi = 0; bi < 6; bi++) {
+            var bx = sprite.x + (Math.random() - 0.5) * 40;
+            var by = sprite.y + (Math.random() - 0.5) * 40;
+            var bubble = scene.add.circle(bx, by, 3 + Math.random() * 4, 0xffffff, 0.6).setDepth(12);
+            scene.tweens.add({
+                targets: bubble, y: by - 30 - Math.random() * 20, alpha: 0,
+                duration: 800 + Math.random() * 600, delay: bi * 100,
+                ease: 'Power1', onComplete: function() { bubble.destroy(); }
+            });
+        }
+    }
+
+    function damageShip(targetIdx, dmg, attackerIdx) {
+        if (targetIdx === -1) {
+            playerHP = Math.max(0, playerHP - dmg);
+            ship.setTint(0xff0000);
+            scene.time.delayedCall(100, function() { if (playerHP > 0) ship.clearTint(); });
+            domHp.textContent = 'HP: ' + Math.ceil(playerHP) + '/' + MAX_HP;
+            if (playerHP <= 3) domHp.style.color = '#ff4444';
+            else if (playerHP <= 6) domHp.style.color = '#ffff00';
+            else domHp.style.color = '#00ff00';
+            if (playerHP <= 0) {
+                var kName = attackerIdx >= 0 ? enemies[attackerIdx].name : (attackerIdx === -3 ? '🐙 Sea Monster' : 'The Abyss');
+                var kColor = attackerIdx >= 0 ? '#' + enemies[attackerIdx].color.toString(16).padStart(6,'0') : (attackerIdx === -3 ? '#9933ff' : '#ff00ff');
+                addElimMessage('You', '#ffffff', kName, kColor);
+                aliveCount--;
+                domAlive.textContent = '⚓ ' + (aliveCount - 1) + ' enemies';
+                sinkShip(ship, function() { showEndScreen(false); });
+            }
+        } else {
+            var e = enemies[targetIdx];
+            e.hp = Math.max(0, e.hp - dmg);
+            e.lastAttacker = attackerIdx;
+            e.sprite.setTint(0xffffff);
+            var eRef = e;
+            scene.time.delayedCall(100, function() { if (eRef.hp > 0) eRef.sprite.setTint(eRef.color); });
+            if (e.hp <= 0) {
+                var kName2 = attackerIdx === -1 ? 'You' : (attackerIdx >= 0 ? enemies[attackerIdx].name : (attackerIdx === -3 ? '🐙 Sea Monster' : 'The Abyss'));
+                var kColor2 = attackerIdx === -1 ? '#ffffff' : (attackerIdx >= 0 ? '#' + enemies[attackerIdx].color.toString(16).padStart(6,'0') : (attackerIdx === -3 ? '#9933ff' : '#ff00ff'));
+                addElimMessage(e.name, '#' + e.color.toString(16).padStart(6,'0'), kName2, kColor2);
+                if (attackerIdx === -1) {
+                    playerKills++; playerXP += 100;
+                    if (cheerQueue.length === 0) cheerQueue = shuffleCheers();
+                    scene.sound.play(cheerQueue.shift(), { volume: 0.8 });
+                }
+                aliveCount--;
+                domAlive.textContent = '⚓ ' + (aliveCount - 1) + ' enemies';
+                spawnLootAt(e.x, e.y, 2);
+                e.hpBarBg.setVisible(false); e.hpBar.setVisible(false);
+                sinkShip(e.sprite, function() {
+                    if (aliveCount <= 1 && playerHP > 0) showEndScreen(true);
+                });
+            }
+            if (attackerIdx === -1) { playerDmgDealt += dmg; playerHits++; playerXP += 10; }
+        }
+    }
+
+    // ===== UPDATE =====
+    function update(time, delta) {
+        if (!ship) return;
+        var dt = Math.min(delta / 1000, 0.05);
+        var camW = scene.cameras.main.width, camH = scene.cameras.main.height;
+
+        if (!gameStarted) return;
+        if (gameOver) return;
+
+        gameTime += dt;
+
+        // --- Periodic loot spawns ---
+        // Health always spawns; all types spawn once half the enemies are dead
+        if (!healthSpawnTimer) healthSpawnTimer = 8 + Math.random() * 4;
+        healthSpawnTimer -= dt;
+        if (healthSpawnTimer <= 0) {
+            healthSpawnTimer = 10 + Math.random() * 10;
+            var enemiesAlive = 0;
+            for (var eci = 0; eci < enemies.length; eci++) { if (enemies[eci].hp > 0) enemiesAlive++; }
+            var halfDead = enemiesAlive <= Math.floor(ENEMY_COUNT / 2);
+            var spawnType = halfDead ? ['T','H','S','C','M'][Math.floor(Math.random()*5)] : 'H';
+            for (var ha = 0; ha < 20; ha++) {
+                var hAngle = Math.random() * Math.PI * 2;
+                var hR = Math.random() * (zoneCurRadius - 50);
+                var hx = zoneCX + Math.cos(hAngle) * hR;
+                var hy = zoneCY + Math.sin(hAngle) * hR;
+                var hValid = true;
+                for (var hci = 0; hci < islandCircles.length; hci++) {
+                    if (Phaser.Math.Distance.Between(hx, hy, islandCircles[hci].x, islandCircles[hci].y) < islandCircles[hci].r + 30) { hValid = false; break; }
+                }
+                if (hValid) { createLootCrate(hx, hy, spawnType); break; }
+            }
+        }
+
+        // --- Zone ---
+        if (zonePhase < ZONE_PHASES.length) {
+            if (!zoneShrinking) {
+                zoneTimer -= dt;
+                if (zoneTimer <= 0) {
+                    zoneShrinking = true;
+                    var phase = ZONE_PHASES[zonePhase];
+                    zoneTargetRadius = phase.radius;
+                    zoneTargetCX = MAP_W/2 + (Math.random() - 0.5) * (1500 - phase.radius) * 0.5;
+                    zoneTargetCY = MAP_H/2 + (Math.random() - 0.5) * (1200 - phase.radius) * 0.4;
+                    zoneTargetCX = Phaser.Math.Clamp(zoneTargetCX, phase.radius + 50, MAP_W - phase.radius - 50);
+                    zoneTargetCY = Phaser.Math.Clamp(zoneTargetCY, phase.radius + 50, MAP_H - phase.radius - 50);
+                    zoneShrinkSpeed = (zoneCurRadius - zoneTargetRadius) / phase.shrinkTime;
+                }
+            } else {
+                var shrinkDelta = zoneShrinkSpeed * dt;
+                zoneCurRadius = Math.max(zoneTargetRadius, zoneCurRadius - shrinkDelta);
+                zoneCX += (zoneTargetCX - zoneCX) * dt * 2;
+                zoneCY += (zoneTargetCY - zoneCY) * dt * 2;
+                if (Math.abs(zoneCurRadius - zoneTargetRadius) < 1) {
+                    zoneCurRadius = zoneTargetRadius;
+                    zoneShrinking = false;
+                    zonePhase++;
+                    if (zonePhase < ZONE_PHASES.length) zoneTimer = ZONE_PHASES[zonePhase].delay;
+                }
+            }
+        }
+
+        // Draw zone
+        zoneGraphics.clear();
+        var pulse = 0.6 + Math.sin(time / 300) * 0.3;
+        zoneGraphics.lineStyle(4, 0xcc44ff, pulse);
+        zoneGraphics.strokeCircle(zoneCX, zoneCY, zoneCurRadius);
+        zoneGraphics.lineStyle(2, 0xff00ff, pulse * 0.5);
+        zoneGraphics.strokeCircle(zoneCX, zoneCY, zoneCurRadius + 8);
+
+        // Zone timer DOM
+        if (zonePhase < ZONE_PHASES.length) {
+            if (zoneShrinking) {
+                domZone.textContent = '☠ THE ABYSS IS CLOSING ☠';
+                domZone.style.color = '#ff44ff';
+            } else {
+                domZone.textContent = 'The Abyss closes in ' + Math.ceil(zoneTimer) + 's';
+                domZone.style.color = '#ff88ff';
+            }
+        } else {
+            domZone.textContent = 'The Abyss - Final';
+            domZone.style.color = '#ff44ff';
+        }
+
+        // Zone damage
+        function isInZone(px, py) {
+            return Phaser.Math.Distance.Between(px, py, zoneCX, zoneCY) <= zoneCurRadius;
+        }
+        if (!isInZone(ship.x, ship.y) && playerHP > 0) {
+            damageShip(-1, ZONE_DPS * dt, -2);
+        }
+        for (var zi = 0; zi < enemies.length; zi++) {
+            if (enemies[zi].hp > 0 && !isInZone(enemies[zi].x, enemies[zi].y)) {
+                damageShip(zi, ZONE_DPS * dt, -2);
+            }
+        }
+
+        // Buff timers
+        if (playerSpeedTimer > 0) { playerSpeedTimer -= dt; if (playerSpeedTimer <= 0) playerSpeedMult = 1.0; }
+        if (playerFireTimer2 > 0) { playerFireTimer2 -= dt; if (playerFireTimer2 <= 0) playerFireMult = 1.0; }
+
+        // --- Player movement ---
+        if (playerHP > 0 && waypoints.length > 0) {
+            var target = waypoints[0];
+            var dist = Phaser.Math.Distance.Between(ship.x, ship.y, target.x, target.y);
+            if (dist < WAYPOINT_REACH) {
+                waypoints.shift();
+                if (waypointMarkers.length > 0) { waypointMarkers[0].destroy(); waypointMarkers.shift(); }
+                drawRoute();
+                if (waypoints.length === 0) { ship.vx *= 0.5; ship.vy *= 0.5; }
+            }
+            if (waypoints.length > 0) {
+                target = waypoints[0];
+                dist = Phaser.Math.Distance.Between(ship.x, ship.y, target.x, target.y);
+                var closeness = Math.max(0, 1 - dist / CLOSE_DIST);
+                var effTurn = TURN_RATE + (TURN_RATE_CLOSE - TURN_RATE) * closeness;
+                var speed = MAX_SPEED * playerSpeedMult;
+                if (waypoints.length === 1) { var tt = Math.min(dist/DECEL_DIST,1); speed = MIN_SPEED + (speed-MIN_SPEED)*tt*tt; }
+                var desA = Math.atan2(target.y-ship.y, target.x-ship.x);
+                var dff = Math.abs(Phaser.Math.Angle.Wrap(desA - ship.rotation));
+                var aPen = Math.min(dff/Math.PI, 1);
+                speed *= Math.max((1-closeness*aPen*0.8)*(1-0.4*aPen), 0.12);
+                moveShip(ship, target.x, target.y, speed, effTurn, dt);
+                drawRoute();
+            }
+        } else if (playerHP > 0) {
+            ship.vx *= 0.92; ship.vy *= 0.92;
+            if (Math.abs(ship.vx) < 0.5) ship.vx = 0;
+            if (Math.abs(ship.vy) < 0.5) ship.vy = 0;
+            var avI = getAvoidanceSteer(ship.x, ship.y);
+            ship.vx += avI.x * 30 * dt; ship.vy += avI.y * 30 * dt;
+            var sf = enforceOutsideIslands(ship.x + ship.vx*dt, ship.y + ship.vy*dt);
+            ship.x = Phaser.Math.Clamp(sf.x, 0, MAP_W);
+            ship.y = Phaser.Math.Clamp(sf.y, 0, MAP_H);
+        }
+
+        // --- Enemy AI ---
+        for (var ei = 0; ei < enemies.length; ei++) {
+            var en = enemies[ei];
+            if (en.hp <= 0) continue;
+            var espd = ENEMY_SPEED_BASE * en.speedMult;
+            var eturn = ENEMY_TURN_RATE_BASE;
+
+            var nearest = findNearestTarget(en.x, en.y, ei);
+            var distToNearest = nearest ? nearest.dist : 9999;
+
+            var lootTarget = null;
+            if (en.hp < 5 || !en.torpedoes || !en.mines) {
+                var bestLootDist = 400;
+                for (var li = 0; li < lootCrates.length; li++) {
+                    var ld = Phaser.Math.Distance.Between(en.x, en.y, lootCrates[li].x, lootCrates[li].y);
+                    if (ld < bestLootDist) { bestLootDist = ld; lootTarget = lootCrates[li]; }
+                }
+            }
+
+            if (lootTarget && distToNearest > FIRE_RANGE) {
+                moveShip(en, lootTarget.x, lootTarget.y, espd, eturn, dt);
+            } else if (nearest && distToNearest < FIRE_RANGE * 1.5 && (en.aggressive || distToNearest < FIRE_RANGE * 0.8)) {
+                var angleToTgt = Math.atan2(nearest.y - en.y, nearest.x - en.x);
+                var strafeAngle = angleToTgt + (Math.sin(time/1000 + ei) > 0 ? Math.PI/2 : -Math.PI/2);
+                moveShip(en, en.x + Math.cos(strafeAngle)*200, en.y + Math.sin(strafeAngle)*200, espd, eturn, dt);
+            } else if (!isInZone(en.x, en.y)) {
+                moveShip(en, zoneCX, zoneCY, espd * 1.2, eturn, dt);
+            } else {
+                en.wanderTimer -= dt;
+                if (!en.wanderTarget || en.wanderTimer <= 0) {
+                    en.wanderTarget = { x: zoneCX + (Math.random()-0.5)*zoneCurRadius, y: zoneCY + (Math.random()-0.5)*zoneCurRadius };
+                    en.wanderTarget.x = Phaser.Math.Clamp(en.wanderTarget.x, 100, MAP_W-100);
+                    en.wanderTarget.y = Phaser.Math.Clamp(en.wanderTarget.y, 100, MAP_H-100);
+                    en.wanderTimer = ENEMY_WANDER_INTERVAL + Math.random() * 2;
+                }
+                var wd = moveShip(en, en.wanderTarget.x, en.wanderTarget.y, espd, eturn, dt);
+                if (wd < 50) en.wanderTimer = 0;
+            }
+            en.sprite.x = en.x; en.sprite.y = en.y; en.sprite.rotation = en.rotation;
+
+            en.fireTimer -= dt;
+            if (nearest && distToNearest < FIRE_RANGE && en.fireTimer <= 0) {
+                var tx = nearest.idx === -1 ? ship.x : enemies[nearest.idx].x;
+                var ty = nearest.idx === -1 ? ship.y : enemies[nearest.idx].y;
+                if (canFire(en, tx, ty) && hasLineOfSight(en.x, en.y, tx, ty)) {
+                    var fa = getFireAngle(en, tx, ty);
+                    spawnCannonball(en.x, en.y, fa, ei);
+                    en.fireTimer = FIRE_COOLDOWN;
+                }
+            }
+
+            // Enemy fires torpedo at close-range target
+            if (en.torpedoes > 0 && nearest && distToNearest < FIRE_RANGE * 1.2) {
+                if (!en.torpTimer || en.torpTimer <= 0) {
+                    var ta = Math.atan2(nearest.y - en.y, nearest.x - en.x);
+                    var tIdx = nearest.idx === -1 ? -2 : nearest.idx; // -2 = targeting player
+                    var ets = scene.add.image(en.x, en.y, 'torpedo').setDepth(5).setRotation(ta);
+                    torpedoes.push({ x: en.x, y: en.y, vx: Math.cos(ta)*TORPEDO_SPEED, vy: Math.sin(ta)*TORPEDO_SPEED, rotation: ta, owner: ei, targetIdx: nearest.idx, life: TORPEDO_LIFE, sprite: ets });
+                    en.torpedoes--;
+                    en.torpTimer = 5 + Math.random() * 3; // cooldown 5-8s
+                }
+            }
+            if (en.torpTimer > 0) en.torpTimer -= dt;
+
+            // Enemy lays mine when being chased (target close behind)
+            if (en.mines > 0 && nearest && distToNearest < FIRE_RANGE * 0.7) {
+                if (!en.mineTimer || en.mineTimer <= 0) {
+                    var ms = scene.add.image(en.x, en.y, 'mine').setDepth(5).setScale(1.2);
+                    scene.tweens.add({ targets: ms, y: en.y - 3, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+                    activeMines.push({ x: en.x, y: en.y, owner: ei, life: MINE_LIFETIME, sprite: ms, armTimer: 1.0 });
+                    en.mines--;
+                    en.mineTimer = 8 + Math.random() * 4; // cooldown 8-12s
+                }
+            }
+            if (en.mineTimer > 0) en.mineTimer -= dt;
+
+            for (var lci = lootCrates.length - 1; lci >= 0; lci--) {
+                var lc = lootCrates[lci];
+                if (Phaser.Math.Distance.Between(en.x, en.y, lc.x, lc.y) < 35) {
+                    if (lc.type === 'T') en.torpedoes = (en.torpedoes || 0) + 1;
+                    else if (lc.type === 'M') en.mines = (en.mines || 0) + 1;
+                    else if (lc.type === 'H') { en.hp = Math.min(MAX_HP, en.hp + 3); }
+                    else if (lc.type === 'S') en.speedMult = Math.min(2.0, en.speedMult + 0.3);
+                    lc.sprite.destroy();
+                    lootCrates.splice(lci, 1);
+                }
+            }
+
+            if (en.hp > 0) {
+                en.hpBarBg.setPosition(en.x, en.y - 35).setVisible(true);
+                en.hpBar.setPosition(en.x - 25, en.y - 35).setVisible(true);
+                en.hpBar.width = 50 * (en.hp / MAX_HP);
+            } else {
+                en.hpBarBg.setVisible(false); en.hpBar.setVisible(false);
+            }
+        }
+
+        // --- Player auto-fire cannons ---
+        playerFireTimer -= dt;
+        if (playerHP > 0) {
+            var playerTarget = findNearestTarget(ship.x, ship.y, -1);
+            if (playerTarget && playerTarget.dist < FIRE_RANGE && playerFireTimer <= 0) {
+                var ptx = playerTarget.idx >= 0 ? enemies[playerTarget.idx].x : 0;
+                var pty = playerTarget.idx >= 0 ? enemies[playerTarget.idx].y : 0;
+                if (playerTarget.idx >= 0 && canFire(ship, ptx, pty) && hasLineOfSight(ship.x, ship.y, ptx, pty)) {
+                    spawnCannonball(ship.x, ship.y, getFireAngle(ship, ptx, pty), -1);
+                    playerFireTimer = FIRE_COOLDOWN * playerFireMult;
+                }
+            }
+        }
+
+        // --- Update cannonballs ---
+        combatGraphics.clear();
+        var alive = [];
+        for (var c = 0; c < cannonballs.length; c++) {
+            var ball = cannonballs[c];
+            ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.life -= dt;
+            if (ball.life <= 0 || ball.x < 0 || ball.x > MAP_W || ball.y < 0 || ball.y > MAP_H) continue;
+            var hitIsland = false;
+            for (var ci = 0; ci < islandCircles.length; ci++) {
+                if (Phaser.Math.Distance.Between(ball.x, ball.y, islandCircles[ci].x, islandCircles[ci].y) < islandCircles[ci].r) { hitIsland = true; break; }
+            }
+            if (hitIsland) continue;
+
+            var hit = false;
+            if (ball.owner !== -1 && playerHP > 0 && Phaser.Math.Distance.Between(ball.x, ball.y, ship.x, ship.y) < 25) {
+                damageShip(-1, CANNONBALL_DAMAGE, ball.owner);
+                hit = true;
+            }
+            if (!hit) {
+                for (var ej = 0; ej < enemies.length; ej++) {
+                    if (ej === ball.owner || enemies[ej].hp <= 0) continue;
+                    if (Phaser.Math.Distance.Between(ball.x, ball.y, enemies[ej].x, enemies[ej].y) < 25) {
+                        damageShip(ej, CANNONBALL_DAMAGE, ball.owner);
+                        hit = true; break;
+                    }
+                }
+            }
+            if (hit) continue;
+
+            var bcolor = ball.owner === -1 ? 0xffcc00 : (ball.owner >= 0 ? enemies[ball.owner].color : 0xff6666);
+            combatGraphics.fillStyle(bcolor, 1); combatGraphics.fillCircle(ball.x, ball.y, 4);
+            combatGraphics.fillStyle(bcolor, 0.3); combatGraphics.fillCircle(ball.x - ball.vx*dt*2, ball.y - ball.vy*dt*2, 3);
+            alive.push(ball);
+        }
+        cannonballs = alive;
+
+        // --- Player loot pickup ---
+        if (playerHP > 0) {
+            for (var lpi = lootCrates.length - 1; lpi >= 0; lpi--) {
+                var lp = lootCrates[lpi];
+                if (Phaser.Math.Distance.Between(ship.x, ship.y, lp.x, lp.y) < 35) {
+                    var pickupMsg = '';
+                    var pickupColor = '#ffffff';
+                    playerXP += 5;
+                    if (lp.type === 'T') { playerTorpedoCount++; domTorpedoCount.textContent = 'x'+playerTorpedoCount; domBtnTorpedo.classList.remove('disabled'); pickupMsg = '+1 Torpedo'; pickupColor = '#ff6666'; scene.sound.play('sfx_pickup', { volume: 0.7 }); }
+                    else if (lp.type === 'H') { playerHP = Math.min(MAX_HP, playerHP + 3); domHp.textContent = 'HP: '+Math.ceil(playerHP)+'/'+MAX_HP; if(playerHP>6)domHp.style.color='#00ff00'; else if(playerHP>3)domHp.style.color='#ffff00'; pickupMsg = '+3 HP'; pickupColor = '#44ff44'; scene.sound.play('sfx_heal', { volume: 0.7 }); }
+                    else if (lp.type === 'S') { playerSpeedMult = 1.5; playerSpeedTimer = 8; pickupMsg = 'Speed Boost! (8s)'; pickupColor = '#44aaff'; scene.sound.play('sfx_speed', { volume: 0.7 }); }
+                    else if (lp.type === 'C') { playerFireMult = 0.5; playerFireTimer2 = 10; pickupMsg = 'Cannon Upgrade! (10s)'; pickupColor = '#ffaa00'; scene.sound.play('sfx_pickup', { volume: 0.7 }); }
+                    else if (lp.type === 'M') { playerMineCount++; domMineCount.textContent = 'x'+playerMineCount; domBtnMine.classList.remove('disabled'); pickupMsg = '+1 Sea Mine'; pickupColor = '#aaaaaa'; scene.sound.play('sfx_pickup', { volume: 0.7 }); }
+                    var popup = scene.add.text(ship.x, ship.y - 30, pickupMsg, {
+                        fontSize: '16px', fontFamily: 'monospace', fontStyle: 'bold', color: pickupColor,
+                        stroke: '#000000', strokeThickness: 3
+                    }).setDepth(50).setOrigin(0.5, 0.5);
+                    scene.tweens.add({ targets: popup, y: ship.y - 80, alpha: 0, duration: 1200, ease: 'Power2', onComplete: function() { popup.destroy(); } });
+                    lp.sprite.destroy();
+                    lootCrates.splice(lpi, 1);
+                }
+            }
+        }
+
+        // --- Update torpedoes ---
+        var aliveTorps = [];
+        for (var ti = 0; ti < torpedoes.length; ti++) {
+            var torp = torpedoes[ti];
+            var homingX = null, homingY = null;
+            if (torp.owner === -1) {
+                if (torp.targetIdx >= 0 && enemies[torp.targetIdx].hp > 0) { homingX = enemies[torp.targetIdx].x; homingY = enemies[torp.targetIdx].y; }
+            } else {
+                // Enemy torpedo — home toward player or target enemy
+                if (torp.targetIdx === -1 && playerHP > 0) { homingX = ship.x; homingY = ship.y; }
+                else if (torp.targetIdx >= 0 && enemies[torp.targetIdx].hp > 0) { homingX = enemies[torp.targetIdx].x; homingY = enemies[torp.targetIdx].y; }
+            }
+            if (homingX !== null) {
+                var da = Math.atan2(homingY - torp.y, homingX - torp.x);
+                var ca = Math.atan2(torp.vy, torp.vx);
+                var dd = Phaser.Math.Angle.Wrap(da - ca);
+                var newA = ca + Phaser.Math.Clamp(dd, -TORPEDO_TURN_RATE * dt, TORPEDO_TURN_RATE * dt);
+                torp.vx = Math.cos(newA) * TORPEDO_SPEED; torp.vy = Math.sin(newA) * TORPEDO_SPEED;
+            }
+            torp.x += torp.vx * dt; torp.y += torp.vy * dt; torp.life -= dt;
+            torp.rotation = Math.atan2(torp.vy, torp.vx);
+            if (torp.sprite) { torp.sprite.setPosition(torp.x, torp.y); torp.sprite.setRotation(torp.rotation); }
+            if (torp.life <= 0 || torp.x < 0 || torp.x > MAP_W || torp.y < 0 || torp.y > MAP_H) { if (torp.sprite) torp.sprite.destroy(); continue; }
+
+            var explode = false;
+            for (var ii = 0; ii < islandCircles.length; ii++) {
+                if (Phaser.Math.Distance.Between(torp.x, torp.y, islandCircles[ii].x, islandCircles[ii].y) < islandCircles[ii].r) { explode = true; break; }
+            }
+            if (!explode) {
+                for (var ek = 0; ek < enemies.length; ek++) {
+                    if (ek === torp.owner) continue; // don't hit self
+                    if (enemies[ek].hp > 0 && Phaser.Math.Distance.Between(torp.x, torp.y, enemies[ek].x, enemies[ek].y) < 30) { explode = true; break; }
+                }
+            }
+            if (!explode && torp.owner >= 0 && playerHP > 0) {
+                if (Phaser.Math.Distance.Between(torp.x, torp.y, ship.x, ship.y) < 30) explode = true;
+            }
+            if (explode) {
+                if (torp.sprite) torp.sprite.destroy();
+                blastEffects.push({ x: torp.x, y: torp.y, radius: 10, maxRadius: TORPEDO_BLAST_RADIUS, alpha: 1.0 });
+                if (ship) { var td = Phaser.Math.Distance.Between(torp.x, torp.y, ship.x, ship.y); scene.sound.play('sfx_torpedo', { volume: Math.min(1, Math.max(0.2, 1.0 * (1 - td / 800))) }); }
+                for (var eb = 0; eb < enemies.length; eb++) {
+                    if (enemies[eb].hp > 0 && Phaser.Math.Distance.Between(torp.x, torp.y, enemies[eb].x, enemies[eb].y) < TORPEDO_BLAST_RADIUS) {
+                        damageShip(eb, TORPEDO_DAMAGE, torp.owner);
+                        if (torp.owner === -1) playerXP += 15;
+                    }
+                }
+                if (Phaser.Math.Distance.Between(torp.x, torp.y, ship.x, ship.y) < TORPEDO_BLAST_RADIUS * 0.6 && playerHP > 0) {
+                    damageShip(-1, 1, -2);
+                }
+                continue;
+            }
+            aliveTorps.push(torp);
+        }
+        torpedoes = aliveTorps;
+
+        // --- Sea monsters animation + collision ---
+        for (var smi = 0; smi < seaMonsters.length; smi++) {
+            var sm = seaMonsters[smi];
+            sm.timer -= dt;
+            if (sm.timer <= 0) {
+                sm.frame = 1 - sm.frame;
+                sm.timer = 0.8 + Math.random() * 0.4;
+                sm.s1.setVisible(sm.frame === 0).setAlpha(sm.frame === 0 ? 0.85 : 0);
+                sm.s2.setVisible(sm.frame === 1).setAlpha(sm.frame === 1 ? 0.85 : 0);
+            }
+            // Move monsters to stay just outside the zone
+            var smDist = Phaser.Math.Distance.Between(sm.x, sm.y, zoneCX, zoneCY);
+            var targetDist = zoneCurRadius + 100 + (smi % 3) * 50;
+            if (smDist < targetDist + 200 && smDist > targetDist) {
+                // already in good range
+            } else {
+                var smAngle = Math.atan2(sm.y - zoneCY, sm.x - zoneCX);
+                var goalX = zoneCX + Math.cos(smAngle) * targetDist;
+                var goalY = zoneCY + Math.sin(smAngle) * targetDist;
+                goalX = Phaser.Math.Clamp(goalX, 80, MAP_W - 80);
+                goalY = Phaser.Math.Clamp(goalY, 80, MAP_H - 80);
+                sm.x += (goalX - sm.x) * dt * 0.5;
+                sm.y += (goalY - sm.y) * dt * 0.5;
+                sm.s1.setPosition(sm.x, sm.y);
+                sm.s2.setPosition(sm.x, sm.y);
+            }
+            // Collision with player
+            if (playerHP > 0 && Phaser.Math.Distance.Between(sm.x, sm.y, ship.x, ship.y) < 50) {
+                scene.sound.play('sfx_kraken', { volume: 1.0 });
+                playerHP = 0;
+                damageShip(-1, MAX_HP, -3);
+            }
+            // Collision with enemies
+            for (var eki = 0; eki < enemies.length; eki++) {
+                if (enemies[eki].hp > 0 && Phaser.Math.Distance.Between(sm.x, sm.y, enemies[eki].x, enemies[eki].y) < 50) {
+                    scene.sound.play('sfx_kraken', { volume: Math.min(1, Math.max(0.2, 1 - Phaser.Math.Distance.Between(sm.x, sm.y, ship.x, ship.y) / 800)) });
+                    damageShip(eki, MAX_HP, -3);
+                }
+            }
+        }
+
+        // --- Blast effects ---
+        var ab = [];
+        for (var bi = 0; bi < blastEffects.length; bi++) {
+            var b = blastEffects[bi];
+            b.radius += (b.maxRadius - b.radius) * 0.15; b.alpha -= dt * 2.5;
+            if (b.alpha > 0.05) {
+                combatGraphics.lineStyle(3, 0xff6600, b.alpha); combatGraphics.strokeCircle(b.x, b.y, b.radius);
+                combatGraphics.fillStyle(0xff4400, b.alpha * 0.3); combatGraphics.fillCircle(b.x, b.y, b.radius * 0.7);
+                ab.push(b);
+            }
+        }
+        blastEffects = ab;
+
+        // --- Update mines ---
+        var aliveMines = [];
+        for (var mi = 0; mi < activeMines.length; mi++) {
+            var mine = activeMines[mi];
+            mine.life -= dt;
+            if (mine.life <= 0) { mine.sprite.destroy(); continue; }
+            // Arming timer — blink while inactive
+            if (mine.armTimer > 0) {
+                mine.armTimer -= dt;
+                mine.sprite.setAlpha(Math.sin(time / 80) > 0 ? 0.8 : 0.2);
+                aliveMines.push(mine);
+                continue;
+            }
+            mine.sprite.setAlpha(mine.life < 5 ? (0.5 + Math.sin(time / 100) * 0.5) : 1);
+            var mineExplode = false;
+            var mineAge = MINE_LIFETIME - mine.life;
+            for (var mej = 0; mej < enemies.length; mej++) {
+                if (enemies[mej].hp <= 0) continue;
+                if (Phaser.Math.Distance.Between(mine.x, mine.y, enemies[mej].x, enemies[mej].y) < 40) { mineExplode = true; break; }
+            }
+            if (!mineExplode && playerHP > 0) {
+                if (Phaser.Math.Distance.Between(mine.x, mine.y, ship.x, ship.y) < 40) mineExplode = true;
+            }
+            if (mineExplode) {
+                blastEffects.push({ x: mine.x, y: mine.y, radius: 10, maxRadius: MINE_BLAST_RADIUS, alpha: 1.0 });
+                if (ship) { var md = Phaser.Math.Distance.Between(mine.x, mine.y, ship.x, ship.y); scene.sound.play('sfx_mine', { volume: Math.min(1, Math.max(0.2, 1.0 * (1 - md / 800))) }); }
+                for (var mek = 0; mek < enemies.length; mek++) {
+                    if (enemies[mek].hp > 0 && Phaser.Math.Distance.Between(mine.x, mine.y, enemies[mek].x, enemies[mek].y) < MINE_BLAST_RADIUS) {
+                        damageShip(mek, MINE_DAMAGE, mine.owner);
+                    }
+                }
+                if (playerHP > 0 && Phaser.Math.Distance.Between(mine.x, mine.y, ship.x, ship.y) < MINE_BLAST_RADIUS) {
+                    damageShip(-1, MINE_DAMAGE, -2);
+                }
+                mine.sprite.destroy();
+                continue;
+            }
+            aliveMines.push(mine);
+        }
+        activeMines = aliveMines;
+
+        // --- HUD DOM updates ---
+        domHp.textContent = 'HP: ' + Math.ceil(playerHP) + '/' + MAX_HP;
+        domAlive.textContent = '⚓ ' + (aliveCount - 1) + ' enemies';
+        domXp.textContent = '⭐ ' + playerXP + ' XP';
+
+        // Buff icons
+        if (playerSpeedTimer > 0) {
+            domBuffSpeed.classList.add('active');
+            domSpeedTimer.textContent = Math.ceil(playerSpeedTimer) + 's';
+        } else { domBuffSpeed.classList.remove('active'); }
+        if (playerFireTimer2 > 0) {
+            domBuffCannon.classList.add('active');
+            domCannonTimer.textContent = Math.ceil(playerFireTimer2) + 's';
+        } else { domBuffCannon.classList.remove('active'); }
+
+        // --- Elimination feed cleanup ---
+        for (var fi = elimFeed.length - 1; fi >= 0; fi--) {
+            elimFeed[fi].timer -= dt;
+            if (elimFeed[fi].timer <= 0) { elimFeed.splice(fi, 1); }
+        }
+
+        // --- Minimap ---
+        minimapGraphics.clear();
+        var cam2 = scene.cameras.main;
+        var camL = cam2.scrollX, camT = cam2.scrollY, camR = camL + camW, camB = camT + camH;
+        var mmW = 140, mmH = Math.round(mmW * MAP_H / MAP_W);
+        var mmX = camW - mmW - 10, mmY = 10;
+        var mmSX = mmW / MAP_W, mmSY = mmH / MAP_H;
+        minimapGraphics.fillStyle(0x001122, 0.75);
+        minimapGraphics.fillRect(mmX - 1, mmY - 1, mmW + 2, mmH + 2);
+        minimapGraphics.lineStyle(1, 0x446688, 0.8);
+        minimapGraphics.strokeRect(mmX - 1, mmY - 1, mmW + 2, mmH + 2);
+        minimapGraphics.lineStyle(2, 0xcc44ff, 0.7);
+        minimapGraphics.strokeCircle(mmX + zoneCX * mmSX, mmY + zoneCY * mmSY, zoneCurRadius * mmSX);
+        for (var mii = 0; mii < islandCircles.length; mii++) {
+            var mi2 = islandCircles[mii];
+            minimapGraphics.fillStyle(0x44aa44, 0.7);
+            minimapGraphics.fillCircle(mmX + mi2.x * mmSX, mmY + mi2.y * mmSY, Math.max(2, mi2.r * mmSX));
+        }
+        for (var mli = 0; mli < lootCrates.length; mli++) {
+            var ml = lootCrates[mli];
+            minimapGraphics.fillStyle(LOOT_TYPES[ml.type] || 0xffffff, 0.6);
+            minimapGraphics.fillRect(mmX + ml.x * mmSX - 1, mmY + ml.y * mmSY - 1, 2, 2);
+        }
+        for (var mei = 0; mei < enemies.length; mei++) {
+            if (enemies[mei].hp <= 0) continue;
+            minimapGraphics.fillStyle(enemies[mei].color, 1);
+            minimapGraphics.fillCircle(mmX + enemies[mei].x * mmSX, mmY + enemies[mei].y * mmSY, 3);
+        }
+        if (playerHP > 0) {
+            minimapGraphics.fillStyle(0xffffff, 1);
+            minimapGraphics.fillCircle(mmX + ship.x * mmSX, mmY + ship.y * mmSY, 3.5);
+            minimapGraphics.lineStyle(1, 0x000000, 0.6);
+            minimapGraphics.strokeCircle(mmX + ship.x * mmSX, mmY + ship.y * mmSY, 3.5);
+        }
+        minimapGraphics.lineStyle(1, 0xffffff, 0.3);
+        minimapGraphics.strokeRect(mmX + camL * mmSX, mmY + camT * mmSY, camW * mmSX, camH * mmSY);
+
+        // --- Off-screen enemy indicators ---
+        for (var oi = 0; oi < enemies.length; oi++) {
+            var oe = enemies[oi];
+            if (oe.hp <= 0) continue;
+            if (oe.x >= camL && oe.x <= camR && oe.y >= camT && oe.y <= camB) continue;
+            var cx2 = camW / 2, cy2 = camH / 2;
+            var dx2 = oe.x - (camL + cx2), dy2 = oe.y - (camT + cy2);
+            var angle2 = Math.atan2(dy2, dx2);
+            var hw2 = camW/2 - 40, hh2 = camH/2 - 40;
+            var tanA = Math.abs(dy2 / (dx2 || 0.001));
+            var ix2, iy2;
+            if (tanA < hh2 / hw2) { ix2 = dx2 > 0 ? hw2 : -hw2; iy2 = ix2 * (dy2 / (dx2 || 0.001)); }
+            else { iy2 = dy2 > 0 ? hh2 : -hh2; ix2 = iy2 * (dx2 / (dy2 || 0.001)); }
+            var sx2 = cx2 + ix2 + camL, sy2 = cy2 + iy2 + camT;
+            combatGraphics.fillStyle(oe.color, 0.9);
+            var as2 = 10;
+            combatGraphics.fillTriangle(
+                sx2 + Math.cos(angle2)*as2, sy2 + Math.sin(angle2)*as2,
+                sx2 + Math.cos(angle2+2.5)*as2, sy2 + Math.sin(angle2+2.5)*as2,
+                sx2 + Math.cos(angle2-2.5)*as2, sy2 + Math.sin(angle2-2.5)*as2
+            );
+        }
+    }
+})();
+</script>
+</body>
+</html>
