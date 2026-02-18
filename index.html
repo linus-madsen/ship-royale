@@ -626,18 +626,13 @@
         }
     });
 
+    var mpEnemySlotsMap = []; // stored after create(), maps enemy idx -> slot
+
     // Helper: get enemy index from multiplayer slot
     function slotToEnemyIdx(slot) {
-        // In multiplayer, slot 0..11 maps to: our slot = player ship, other slots = enemies array
-        // Enemies are indexed 0..10 but assigned to the 11 non-player slots
         if (!mpActive) return -1;
-        // Build mapping: non-player slots in order are enemy indices
-        var enemySlots = [];
-        for (var s = 0; s < 12; s++) {
-            if (s !== mpSlot) enemySlots.push(s);
-        }
-        for (var i = 0; i < enemySlots.length; i++) {
-            if (enemySlots[i] === slot) return i;
+        for (var i = 0; i < mpEnemySlotsMap.length; i++) {
+            if (mpEnemySlotsMap[i] === slot) return i;
         }
         return -1;
     }
@@ -653,11 +648,7 @@
     // Get the multiplayer slot for a given enemy index
     function enemyIdxToSlot(idx) {
         if (!mpActive) return -1;
-        var enemySlots = [];
-        for (var s = 0; s < 12; s++) {
-            if (s !== mpSlot) enemySlots.push(s);
-        }
-        return idx >= 0 && idx < enemySlots.length ? enemySlots[idx] : -1;
+        return idx >= 0 && idx < mpEnemySlotsMap.length ? mpEnemySlotsMap[idx] : -1;
     }
 
     // Handle remote player actions (fire, torpedo, mine)
@@ -976,8 +967,9 @@
             if (valid) createLootCrate(lx, ly, ['T','S','C','M'][Math.floor(Math.random()*4)]);
         }
 
-        // Player at 6 o'clock (bottom), enemies fill the other 11 positions
-        var playerAngle = Math.PI / 2; // 6 o'clock
+        // Player spawns at their clock-dial slot (default slot 0 = 6 o'clock in single-player)
+        var mySpawnSlot = mpActive ? mpSlot : 6; // slot 6 = 6 o'clock (bottom) in single-player
+        var playerAngle = (mySpawnSlot / 12) * Math.PI * 2 - Math.PI / 2; // 12 o'clock = -PI/2, clockwise
         var px = MAP_W / 2 + Math.cos(playerAngle) * 1400;
         var py = MAP_H / 2 + Math.sin(playerAngle) * 1200;
         px = Phaser.Math.Clamp(px, 150, MAP_W - 150);
@@ -985,14 +977,14 @@
         ship = scene.add.image(px, py, 'ship').setDepth(10);
         ship.vx = 0; ship.vy = 0; ship.rotation = Math.atan2(MAP_H/2 - py, MAP_W/2 - px);
 
-        // Build enemy slot list (all slots except ours)
+        // Build enemy slot list (all slots except ours) — used for both spawn and multiplayer mapping
         var mpEnemySlots = [];
-        if (mpActive) {
-            for (var s = 0; s < 12; s++) { if (s !== mpSlot) mpEnemySlots.push(s); }
-        }
+        for (var s = 0; s < 12; s++) { if (s !== mySpawnSlot) mpEnemySlots.push(s); }
+        mpEnemySlotsMap = mpEnemySlots; // store for slotToEnemyIdx/enemyIdxToSlot
 
         for (var ei = 0; ei < ENEMY_COUNT; ei++) {
-            var ea = ((ei + 1) / 12) * Math.PI * 2 + Math.PI / 2; // skip slot 0 (player at 6 o'clock)
+            var actualSlot = mpEnemySlots[ei];
+            var ea = (actualSlot / 12) * Math.PI * 2 - Math.PI / 2;
             var ex = MAP_W / 2 + Math.cos(ea) * 1400;
             var ey = MAP_H / 2 + Math.sin(ea) * 1200;
             ex = Phaser.Math.Clamp(ex, 150, MAP_W - 150);
