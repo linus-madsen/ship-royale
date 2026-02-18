@@ -930,6 +930,15 @@
     function create() {
         scene = this;
 
+        // Clear game state arrays (needed for scene restart)
+        enemies = []; cannonballs = []; torpedoes = []; lootCrates = []; blastEffects = []; elimFeed = [];
+        activeMines = []; seaMonsters = []; waypoints = []; waypointMarkers = [];
+        playerHP = MAX_HP; playerXP = 0; playerKills = 0; playerHits = 0; playerDmgDealt = 0;
+        playerTorpsFired = 0; playerTorpedoCount = STARTING_TORPEDOES; playerMineCount = STARTING_MINES;
+        playerSpeedMult = 1.0; playerSpeedTimer = 0; playerFireMult = 1.0; playerFireTimer = 0;
+        playerFireBuffTimer = 0; gameOver = false; gameStarted = false; gameTime = 0; healthSpawnTimer = 0;
+        aliveCount = ENEMY_COUNT + 1;
+
         var wImg = this.textures.get('water').getSourceImage();
         var tw = wImg.width, th = wImg.height;
         for (var x = 0; x < MAP_W; x += tw)
@@ -1121,7 +1130,6 @@
         // Auto-start after multiplayer matchmaking restarts the scene
         if (window._mpAutoStart) {
             window._mpAutoStart = false;
-            console.log('[MP] Auto-start: mpActive=' + mpActive + ' mpSlot=' + mpSlot + ' mySpawnSlot=' + mySpawnSlot + ' enemies.isHuman:', enemies.map(function(e){return e.isHuman;}));
             gameStarted = true;
             window.GAME_STARTED = true;
             if (bgMusic) bgMusic.setVolume(0.22);
@@ -1416,7 +1424,6 @@
         }
 
         // --- Send own state to server ---
-        if (!window._mpSendDebug && gameTime > 1) { window._mpSendDebug = true; console.log('[MP] Send check: mpActive=' + mpActive + ' mpWs=' + !!mpWs + ' wsState=' + (mpWs ? mpWs.readyState : 'null') + ' hp=' + playerHP); }
         if (mpActive && mpWs && mpWs.readyState === 1 && playerHP > 0) {
             mpSendTimer -= dt;
             if (mpSendTimer <= 0) {
@@ -1427,13 +1434,6 @@
 
         // --- Apply remote player states to human-controlled enemies ---
         if (mpActive) {
-            // Debug: log once
-            if (!window._mpDebugDone) {
-                window._mpDebugDone = true;
-                var humanSlots = [];
-                for (var di = 0; di < enemies.length; di++) { if (enemies[di].isHuman) humanSlots.push({idx: di, slot: enemyIdxToSlot(di)}); }
-                console.log('[MP] mpActive:', mpActive, 'mpSlot:', mpSlot, 'humanEnemies:', JSON.stringify(humanSlots), 'remoteStates:', JSON.stringify(mpRemoteStates));
-            }
             for (var ri = 0; ri < enemies.length; ri++) {
                 var re = enemies[ri];
                 if (!re.isHuman || re.hp <= 0) continue;
