@@ -252,7 +252,7 @@
     <p class="mm-status" id="mm-status">Connecting...</p>
     <p class="mm-countdown" id="mm-countdown">30</p>
     <div class="mm-players" id="mm-players"></div>
-    <button id="mm-skip-btn" class="nes-btn is-warning">SKIP WAIT</button>
+    <button id="mm-skip-btn" class="nes-btn is-warning">START NOW</button>
 </div>
 
 <div id="splash">
@@ -555,6 +555,8 @@
         domMmOverlay.classList.add('show');
         domMmStatus.textContent = 'Connecting...';
         domMmCountdown.textContent = '';
+        document.getElementById('mm-skip-btn').textContent = 'START NOW';
+        document.getElementById('mm-skip-btn').disabled = false;
         domMmPlayers.innerHTML = '';
 
         var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -569,7 +571,8 @@
             try { msg = JSON.parse(evt.data); } catch { return; }
 
             if (msg.type === 'waiting') {
-                domMmStatus.textContent = msg.players + '/12 players (Room ' + (msg.roomId || '?') + ')';
+                var readyTxt = msg.ready ? ' (' + msg.ready + '/' + msg.players + ' ready)' : '';
+                domMmStatus.textContent = msg.players + '/12 players' + readyTxt;
                 domMmCountdown.textContent = msg.countdown;
                 if (msg.names) {
                     domMmPlayers.innerHTML = msg.names.map(function(n) { return '<div>⚓ ' + n + '</div>'; }).join('');
@@ -628,8 +631,11 @@
 
     document.getElementById('mm-skip-btn').addEventListener('click', function(e) {
         e.stopPropagation();
+        playClick();
         if (mpWs && mpWs.readyState === 1) {
             mpWs.send(JSON.stringify({ type: 'skip' }));
+            document.getElementById('mm-skip-btn').textContent = '✓ READY';
+            document.getElementById('mm-skip-btn').disabled = true;
         }
     });
 

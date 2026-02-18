@@ -229,7 +229,17 @@ wss.on('connection', (ws) => {
       if (room.players.length >= MAX_PLAYERS) startGame(room);
 
     } else if (msg.type === 'skip' && playerRoom && playerRoom.state === 'waiting') {
-      startGame(playerRoom);
+      // Mark this player as ready
+      const player = playerRoom.players.find(p => p.ws === ws);
+      if (player) player.ready = true;
+      // Check if all humans are ready
+      const allReady = playerRoom.players.every(p => p.ready);
+      if (allReady) {
+        startGame(playerRoom);
+      } else {
+        const readyCount = playerRoom.players.filter(p => p.ready).length;
+        broadcastRoom(playerRoom, { type: 'waiting', players: playerRoom.players.length, countdown: playerRoom.countdown, names: playerRoom.players.map(p => p.name), roomId: playerRoom.id, ready: readyCount });
+      }
 
     } else if (msg.type === 'state' && playerRoom && playerRoom.state === 'playing') {
       // Store and relay player state
