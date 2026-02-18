@@ -249,6 +249,12 @@ wss.on('connection', (ws) => {
       for (const p of playerRoom.players) {
         if (p.ws !== ws && p.ws.readyState === 1) p.ws.send(data);
       }
+
+    } else if (msg.type === 'death' && playerRoom && playerRoom.state === 'playing') {
+      const data = JSON.stringify({ type: 'death', slot: playerSlot });
+      for (const p of playerRoom.players) {
+        if (p.ws !== ws && p.ws.readyState === 1) p.ws.send(data);
+      }
     }
   });
 

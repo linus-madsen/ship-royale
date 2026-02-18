@@ -600,8 +600,18 @@
                 // Remote player fired something — we handle this in the game loop
                 if (window.handleRemoteAction) window.handleRemoteAction(msg);
             } else if (msg.type === 'kill' && mpActive) {
-                // Remote kill notification — could update UI but client-authoritative means
-                // each client handles their own damage, so this is informational
+                // Remote kill notification
+            } else if (msg.type === 'death' && mpActive) {
+                // Remote player died — force their ship dead on our side
+                var deathIdx = slotToEnemyIdx(msg.slot);
+                if (deathIdx >= 0 && deathIdx < enemies.length && enemies[deathIdx].hp > 0) {
+                    enemies[deathIdx].hp = 0;
+                    aliveCount--;
+                    domAlive.textContent = '⚓ ' + (aliveCount - 1) + ' enemies';
+                    addElimMessage(enemies[deathIdx].name, '#' + enemies[deathIdx].color.toString(16).padStart(6,'0'), 'The Abyss', '#ff00ff');
+                    sinkShip(enemies[deathIdx].sprite, function() {});
+                    if (aliveCount <= 1 && playerHP > 0) showEndScreen(true);
+                }
             }
         };
 
@@ -1257,6 +1267,10 @@
                 addElimMessage('You', '#ffffff', kName, kColor);
                 aliveCount--;
                 domAlive.textContent = '⚓ ' + (aliveCount - 1) + ' enemies';
+                // Broadcast death to other players
+                if (mpActive && mpWs && mpWs.readyState === 1) {
+                    mpWs.send(JSON.stringify({ type: 'death', slot: mpSlot }));
+                }
                 sinkShip(ship, function() { showEndScreen(false); });
             }
         } else {
