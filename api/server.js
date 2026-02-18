@@ -210,11 +210,13 @@ wss.on('connection', (ws) => {
       let room = findWaitingRoom();
       if (!room) room = createRoom();
       playerRoom = room;
-      // Assign next available slot
+      // Assign random available slot
       const usedSlots = new Set(room.players.map(p => p.slot));
+      const availableSlots = [];
       for (let s = 0; s < MAX_PLAYERS; s++) {
-        if (!usedSlots.has(s)) { playerSlot = s; break; }
+        if (!usedSlots.has(s)) availableSlots.push(s);
       }
+      playerSlot = availableSlots[Math.floor(Math.random() * availableSlots.length)];
       room.players.push({ ws, slot: playerSlot, name: String(msg.name || 'Anon').slice(0, 20), alive: true });
       console.log(`[Room ${room.id}] Player "${msg.name}" joined as slot ${playerSlot} (${room.players.length}/${MAX_PLAYERS})`);
       // Immediately send waiting status
