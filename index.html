@@ -850,15 +850,20 @@
             if (myShip.fireBuff > 0) { domBuffCannon.classList.add('active'); domCannonTimer.textContent = myShip.fireBuff + 's'; }
             else domBuffCannon.classList.remove('active');
 
-            // Clear local waypoints when ship stops (server consumed them)
-            // Simple approach: clear when close to the first local waypoint
+            // Clear local waypoints that the ship has passed or is near
             while (localWaypoints.length > 0 && waypointMarkers.length > 0) {
                 var d = Phaser.Math.Distance.Between(myShip.x, myShip.y, localWaypoints[0].x, localWaypoints[0].y);
-                if (d < 30) {
+                if (d < 60) {
                     localWaypoints.shift();
                     waypointMarkers[0].destroy();
                     waypointMarkers.shift();
                 } else break;
+            }
+            // Clear all waypoints if dead or server has no waypoints left for us
+            if (!myShip.alive || (myShip.waypoints !== undefined && myShip.waypoints === 0)) {
+                for (var cwi = 0; cwi < waypointMarkers.length; cwi++) waypointMarkers[cwi].destroy();
+                waypointMarkers = [];
+                localWaypoints = [];
             }
         }
 

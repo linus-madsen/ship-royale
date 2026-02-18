@@ -919,7 +919,7 @@ function tickGame(room) {
       rotation: Math.round(s.rotation * 1000) / 1000,
       hp: Math.round(s.hp * 10) / 10, alive: s.alive,
       name: s.name, color: s.color,
-      torpedoes: s.torpedoes, mines: s.mines,
+      torpedoes: s.torpedoes, mines: s.mines, waypoints: s.waypoints ? s.waypoints.length : 0,
       speedBuff: s.speedBuff > 0 ? Math.ceil(s.speedBuff) : 0,
       fireBuff: s.fireBuff > 0 ? Math.ceil(s.fireBuff) : 0,
     })),
