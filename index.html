@@ -588,7 +588,7 @@
                 scene.scene.restart();
                 // Set a flag so create() knows to auto-start
                 window._mpAutoStart = true;
-            } else if (msg.type === 'update' && mpActive) {
+            } else if (msg.type === 'update') {
                 // Update remote player positions
                 for (var ui = 0; ui < msg.players.length; ui++) {
                     var ps = msg.players[ui];
@@ -1143,9 +1143,11 @@
         playerKills = 0; playerDmgDealt = 0; playerTorpsFired = 0; playerXP = 0; playerHits = 0; cheerQueue = [];
         gameOver = false; gameStarted = false; gameTime = 0; healthSpawnTimer = 0;
         aliveCount = ENEMY_COUNT + 1; zonePhase = 0; islandCircles = [];
-        // Reset multiplayer
-        if (mpWs) { mpWs.close(); mpWs = null; }
-        mpSlot = -1; mpPlayers = []; mpRemoteStates = {}; mpActive = false; mpSendTimer = 0;
+        // Reset multiplayer (only if not restarting for matchmaking)
+        if (!window._mpAutoStart) {
+            if (mpWs) { mpWs.close(); mpWs = null; }
+            mpSlot = -1; mpPlayers = []; mpRemoteStates = {}; mpActive = false; mpSendTimer = 0;
+        }
     }
 
     function clearMarkers(){waypointMarkers.forEach(function(m){m.destroy()});waypointMarkers=[];if(routeGraphics)routeGraphics.clear()}
