@@ -768,6 +768,7 @@
         if (gameOver) return;
 
         var st = serverState;
+        var dt = Math.min(delta / 1000, 0.05);
         var camW = scene.cameras.main.width, camH = scene.cameras.main.height;
 
         // === Update ships ===
@@ -781,15 +782,25 @@
                 if (sd.slot !== mySlot) spr.setTint(sd.color);
                 var hpBg = scene.add.rectangle(0, 0, 50, 6, 0x333333).setDepth(20).setOrigin(0.5, 0.5);
                 var hpBar = scene.add.rectangle(0, 0, 50, 6, sd.slot === mySlot ? 0x00ff00 : sd.color).setDepth(21).setOrigin(0, 0.5);
-                sp = { sprite: spr, hpBarBg: hpBg, hpBar: hpBar };
+                sp = { sprite: spr, hpBarBg: hpBg, hpBar: hpBar, _ix: sd.x, _iy: sd.y, _ir: sd.rotation };
                 shipSprites[sd.slot] = sp;
             }
 
             if (sd.alive) {
-                sp.sprite.setPosition(sd.x, sd.y).setRotation(sd.rotation).setVisible(true);
+                // Smooth interpolation toward server position at 60fps
+                var lerpSpeed = dt * 15; // fast catchup
+                if (sp._ix === undefined) { sp._ix = sd.x; sp._iy = sd.y; sp._ir = sd.rotation; }
+                sp._ix += (sd.x - sp._ix) * lerpSpeed;
+                sp._iy += (sd.y - sp._iy) * lerpSpeed;
+                var angleDiff = sd.rotation - sp._ir;
+                // Wrap angle difference
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                sp._ir += angleDiff * lerpSpeed;
+                sp.sprite.setPosition(sp._ix, sp._iy).setRotation(sp._ir).setVisible(true);
                 sp.sprite.setScale(1); sp.sprite.setAlpha(1);
-                sp.hpBarBg.setPosition(sd.x, sd.y - 35).setVisible(true);
-                sp.hpBar.setPosition(sd.x - 25, sd.y - 35).setVisible(true);
+                sp.hpBarBg.setPosition(sp._ix, sp._iy - 35).setVisible(true);
+                sp.hpBar.setPosition(sp._ix - 25, sp._iy - 35).setVisible(true);
                 sp.hpBar.width = 50 * (sd.hp / MAX_HP);
 
                 // Flash on damage

@@ -100,7 +100,7 @@ const ZONE_PHASES = [
   { radius: 120,  delay: 25, shrinkTime: 8 }
 ];
 const ZONE_DPS = 1.5;
-const TICK_RATE = 20; // Hz
+const TICK_RATE = 30; // Hz
 const TICK_MS = 1000 / TICK_RATE;
 
 const islandDefs = [
