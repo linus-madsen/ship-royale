@@ -175,6 +175,7 @@
         <div id="hud-alive">⚓ 9 alive</div>
         <div id="hud-xp">⭐ 0 XP</div>
         <div id="hud-zone"></div>
+        <div id="hud-quit" style="margin-top:4px;cursor:pointer;color:#ff6666;pointer-events:auto;">✖ Quit</div>
     </div>
     <div id="hud-actions">
         <div class="action-btn" id="btn-torpedo">
@@ -348,12 +349,13 @@
     var MAP_W = 4000, MAP_H = 3200;
     var MAP_PAD = 50;
     var MAX_HP = 10;
+    var ISLAND_MARGIN = 40;
     var LOOT_TYPES = { T: 0xff4444, H: 0x44ff44, S: 0x4488ff, C: 0xffaa00, M: 0x444444 };
 
     // === State ===
     var scene, ws;
     var mySlot = -1;
-    var gameStarted = false, gameOver = false;
+    var gameStarted = false, gameOver = false, gameOverTime = null;
     var bgMusic;
     var musicMuted = localStorage.getItem('warship_music_muted') === '1';
 
@@ -442,7 +444,7 @@
                 mySlot = msg.slot;
                 islandDefs = msg.islands || [];
                 gameStarted = true;
-                gameOver = false;
+                gameOver = false; gameOverTime = null;
                 playerXP = 0;
                 playerKills = 0;
 
@@ -508,8 +510,10 @@
             '<br>Time: ' + mins + 'm ' + secs + 's' +
             '<br><br><span style="color:#ffcc00">⭐ ' + playerXP + ' XP</span>' +
             '<br>' + recordLabel;
+
         domHud.classList.remove('show');
-        domEndScreen.classList.add('show');
+        var delay = msg.won ? 3000 : 2000;
+        setTimeout(function() { domEndScreen.classList.add('show'); }, delay);
     }
 
     function getPlaceStr(n) {
@@ -521,8 +525,7 @@
         if (!scene) return;
         var camW = scene.cameras.main.width;
         var msg = killerName + ' sank ' + victimName + '!';
-        var yOff = 0;
-        var txt = scene.add.text(camW / 2, 100 + yOff, msg, {
+        var txt = scene.add.text(camW / 2, 180, msg, {
             fontSize: '18px', fontFamily: 'monospace', fontStyle: 'bold',
             color: killerColor, stroke: '#000000', strokeThickness: 4
         }).setScrollFactor(0).setDepth(200).setOrigin(0.5, 0.5).setAlpha(1);
@@ -557,6 +560,21 @@
         startMatchmaking();
     });
 
+    document.getElementById('hud-quit').addEventListener('click', function(e) {
+        e.stopPropagation(); playClick();
+        if (ws) { ws.close(); ws = null; }
+        gameOver = true;
+        if (bgMusic) bgMusic.setVolume(0.3);
+        domEndTitle.textContent = '💀 RETREATED';
+        var prevBest = parseInt(localStorage.getItem('warship_best_xp') || '0', 10);
+        domEndStats.innerHTML =
+            'Kills: ' + playerKills +
+            '<br><br><span style="color:#ffcc00">⭐ ' + playerXP + ' XP</span>' +
+            '<br><span style="color:#aaa">Record: ' + prevBest + ' XP</span>';
+        domHud.classList.remove('show');
+        domEndScreen.classList.add('show');
+    });
+
     document.getElementById('hud-actions').addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: false });
     document.getElementById('hud-actions').addEventListener('pointerdown', function(e) { e.stopPropagation(); });
     document.getElementById('hud-stats').addEventListener('touchstart', function(e) { e.stopPropagation(); }, { passive: false });
@@ -579,7 +597,7 @@
     document.getElementById('end-restart-btn').addEventListener('click', function() {
         playClick();
         if (bgMusic) bgMusic.setVolume(0.35);
-        gameOver = false;
+        gameOver = false; gameOverTime = null;
         gameStarted = false;
         serverState = null;
         mySlot = -1;
@@ -612,6 +630,7 @@
 
     function preload() {
         this.load.image('ship', 'assets/ship2.png?v=1740874000');
+        this.load.image('sunken_ship', 'assets/sunken_ship.png?v=2');
         this.load.image('water', 'assets/water.png?v=1740874000');
         this.load.image('torpedo', 'assets/torpedo.png');
         this.load.image('kraken1', 'assets/kraken1.png?v=2');
@@ -713,7 +732,7 @@
             }
             ws.send(JSON.stringify({ type: 'waypoint', x: Math.round(wp.x), y: Math.round(wp.y) }));
             // Local waypoint marker for immediate feedback
-            localWaypoints.push({ x: wp.x, y: wp.y });
+            localWaypoints.push({ x: wp.x, y: wp.y, t: Date.now() });
             var dot = scene.add.circle(wp.x, wp.y, 5, 0xffff00, 0.85).setDepth(5);
             waypointMarkers.push(dot);
         });
@@ -745,6 +764,10 @@
     var sunkSlots = {};
 
     function sinkShip(sprite) {
+        // Place sunken wreck at death position
+        var wreck = scene.add.image(sprite.x, sprite.y, 'sunken_ship').setDepth(1);
+        wreck.setAlpha(1).setScale(0.5);
+
         scene.tweens.add({
             targets: sprite,
             scaleX: 0.3, scaleY: 0.3, angle: sprite.angle + 120, alpha: 0,
@@ -765,7 +788,8 @@
 
     function update(time, delta) {
         if (!scene || !gameStarted || !serverState) return;
-        if (gameOver) return;
+        if (gameOver && (!gameOverTime || Date.now() - gameOverTime > 4000)) return;
+        if (gameOver && !gameOverTime) gameOverTime = Date.now();
 
         var st = serverState;
         var dt = Math.min(delta / 1000, 0.05);
@@ -779,21 +803,26 @@
             if (!sp) {
                 // Create ship sprite
                 var spr = scene.add.image(sd.x, sd.y, 'ship').setDepth(10);
-                if (sd.slot !== mySlot) spr.setTint(sd.color);
+                spr.setTint(sd.color);
                 var hpBg = scene.add.rectangle(0, 0, 50, 6, 0x333333).setDepth(20).setOrigin(0.5, 0.5);
                 var hpBar = scene.add.rectangle(0, 0, 50, 6, sd.slot === mySlot ? 0x00ff00 : sd.color).setDepth(21).setOrigin(0, 0.5);
-                var nameLabel = null;
-                if (!sd.isAI) {
-                    nameLabel = scene.add.text(sd.x, sd.y - 48, sd.name || '', {
-                        fontSize: '10px', fontFamily: 'Press Start 2P, monospace',
-                        color: '#ffffff', stroke: '#000000', strokeThickness: 3
-                    }).setDepth(22).setOrigin(0.5, 1);
-                }
+                var displayName = sd.isAI ? (sd.name || '') + ' AI' : (sd.name || '');
+                var nameLabel = scene.add.text(sd.x, sd.y - 48, displayName, {
+                    fontSize: '10px', fontFamily: 'Press Start 2P, monospace',
+                    color: sd.isAI ? '#aaaaaa' : '#ffffff', stroke: '#000000', strokeThickness: 3
+                }).setDepth(22).setOrigin(0.5, 1);
                 sp = { sprite: spr, hpBarBg: hpBg, hpBar: hpBar, nameLabel: nameLabel, _ix: sd.x, _iy: sd.y, _ir: sd.rotation };
                 shipSprites[sd.slot] = sp;
             }
 
             if (sd.alive) {
+                // If previously sunk, restore sprite
+                if (sunkSlots[sd.slot]) {
+                    delete sunkSlots[sd.slot];
+                    scene.tweens.killTweensOf(sp.sprite);
+                    sp.sprite.setScale(1).setAlpha(1).setVisible(true);
+                    sp.sprite.setTint(sd.color);
+                }
                 // Smooth interpolation toward server position at 60fps
                 var lerpSpeed = dt * 15; // fast catchup
                 if (sp._ix === undefined) { sp._ix = sd.x; sp._iy = sd.y; sp._ir = sd.rotation; }
@@ -804,8 +833,10 @@
                 while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
                 while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
                 sp._ir += angleDiff * lerpSpeed;
-                sp.sprite.setPosition(sp._ix, sp._iy).setRotation(sp._ir).setVisible(true);
-                sp.sprite.setScale(1); sp.sprite.setAlpha(1);
+                sp.sprite.setPosition(sp._ix, sp._iy).setRotation(sp._ir);
+                if (!sunkSlots[sd.slot]) {
+                    sp.sprite.setVisible(true).setScale(1).setAlpha(1);
+                }
                 sp.hpBarBg.setPosition(sp._ix, sp._iy - 35).setVisible(true);
                 sp.hpBar.setPosition(sp._ix - 25, sp._iy - 35).setVisible(true);
                 if (sp.nameLabel) sp.nameLabel.setPosition(sp._ix, sp._iy - 42).setVisible(true);
@@ -813,27 +844,34 @@
 
                 // Flash on damage
                 if (sp._lastHp !== undefined && sd.hp < sp._lastHp) {
-                    if (sd.slot === mySlot) sp.sprite.setTint(0xff0000);
-                    else sp.sprite.setTint(0xffffff);
-                    var ref = sp; var col = sd.color; var isMe = sd.slot === mySlot;
+                    sp.sprite.setTint(0xff0000);
+                    var ref = sp; var col = sd.color;
                     scene.time.delayedCall(100, function() {
-                        if (isMe) ref.sprite.clearTint();
-                        else ref.sprite.setTint(col);
+                        ref.sprite.setTint(col);
                     });
                 }
                 sp._lastHp = sd.hp;
             } else {
                 if (!sunkSlots[sd.slot]) {
                     sunkSlots[sd.slot] = true;
-                    sinkShip(sp.sprite);
+                    if (sd.slot === mySlot) {
+                        // Player death: swap to wreck texture, clear waypoints
+                        sp.sprite.setTexture('sunken_ship').setScale(0.5).setAlpha(1).setRotation(0);
+                        sp.sprite.clearTint();
+                        for (var wmi = 0; wmi < waypointMarkers.length; wmi++) waypointMarkers[wmi].destroy();
+                        waypointMarkers = [];
+                        localWaypoints = [];
+                    } else {
+                        sinkShip(sp.sprite);
+                    }
                 }
                 sp.hpBarBg.setVisible(false);
                 sp.hpBar.setVisible(false);
                 if (sp.nameLabel) sp.nameLabel.setVisible(false);
             }
 
-            // Follow own ship
-            if (sd.slot === mySlot && sd.alive) {
+            // Follow own ship (alive or just sunk)
+            if (sd.slot === mySlot) {
                 scene.cameras.main.startFollow(sp.sprite, true, 0.08, 0.08);
             }
         }
@@ -859,18 +897,25 @@
             if (myShip.fireBuff > 0) { domBuffCannon.classList.add('active'); domCannonTimer.textContent = myShip.fireBuff + 's'; }
             else domBuffCannon.classList.remove('active');
 
-            // Clear local waypoints that the ship has passed or is near
-            while (localWaypoints.length > 0 && waypointMarkers.length > 0) {
-                var d = Phaser.Math.Distance.Between(myShip.x, myShip.y, localWaypoints[0].x, localWaypoints[0].y);
-                if (d < 60) {
+            // Sync local waypoint markers with server's waypoint count
+            // Server tells us how many waypoints remain; trim consumed ones from front
+            if (myShip.waypoints !== undefined) {
+                var serverCount = myShip.waypoints;
+                while (localWaypoints.length > serverCount && waypointMarkers.length > 0) {
                     localWaypoints.shift();
                     waypointMarkers[0].destroy();
                     waypointMarkers.shift();
-                } else break;
+                }
+                // If server has 0 waypoints, clear everything
+                if (serverCount === 0 && (localWaypoints.length > 0 || waypointMarkers.length > 0)) {
+                    for (var cwi = 0; cwi < waypointMarkers.length; cwi++) waypointMarkers[cwi].destroy();
+                    waypointMarkers = [];
+                    localWaypoints = [];
+                }
             }
-            // Clear all waypoints if dead or server has no waypoints left for us
-            if (!myShip.alive || (myShip.waypoints !== undefined && myShip.waypoints === 0)) {
-                for (var cwi = 0; cwi < waypointMarkers.length; cwi++) waypointMarkers[cwi].destroy();
+            // Clear all waypoints if dead
+            if (!myShip.alive) {
+                for (var cwi2 = 0; cwi2 < waypointMarkers.length; cwi2++) waypointMarkers[cwi2].destroy();
                 waypointMarkers = [];
                 localWaypoints = [];
             }
@@ -977,10 +1022,10 @@
         // === Draw blasts ===
         for (var bi2 = 0; bi2 < st.blasts.length; bi2++) {
             var bl = st.blasts[bi2];
+            combatGraphics.fillStyle(0xff4400, 0.2);
+            combatGraphics.fillCircle(bl.x, bl.y, bl.radius);
             combatGraphics.lineStyle(3, 0xff6600, 0.7);
             combatGraphics.strokeCircle(bl.x, bl.y, bl.radius);
-            combatGraphics.fillStyle(0xff4400, 0.2);
-            combatGraphics.fillCircle(bl.x, bl.y, bl.radius * 0.7);
         }
 
         // === Draw route ===

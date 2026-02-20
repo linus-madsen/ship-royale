@@ -77,9 +77,9 @@ app.get('/player/:username', (req, res) => {
 
 // ========== GAME CONSTANTS ==========
 const MAP_W = 4000, MAP_H = 3200;
-const MAX_SPEED = 200, MIN_SPEED = 20;
+const MAX_SPEED = 200, MIN_SPEED = 40;
 const TURN_RATE = 1.8, TURN_RATE_CLOSE = 12.0, CLOSE_DIST = 120, DECEL_DIST = 150;
-const WAYPOINT_REACH = 25, ISLAND_MARGIN = 80;
+const WAYPOINT_REACH = 20, ISLAND_MARGIN = 40;
 const AVOIDANCE_RANGE = 100, AVOIDANCE_FORCE = 3.0, MAP_PAD = 50;
 const FIRE_RANGE = 350, FIRE_COOLDOWN = 1.5;
 const CANNONBALL_SPEED = 250, CANNONBALL_DAMAGE = 1;
@@ -359,7 +359,7 @@ function startGame(room) {
       alive: true,
       isAI: isAI,
       name: human ? human.name : (ENEMY_NAMES[aiIdx % ENEMY_NAMES.length] || 'Bot' + s),
-      color: human ? 0xffffff : (ENEMY_COLORS[aiIdx % ENEMY_COLORS.length]),
+      color: ENEMY_COLORS[s % ENEMY_COLORS.length],
       fireTimer: Math.random() * FIRE_COOLDOWN,
       torpedoes: STARTING_TORPEDOES,
       mines: STARTING_MINES,
@@ -716,19 +716,29 @@ function tickGame(room) {
       // Human player — follow waypoints
       const spdMult = s.speedBuff > 0 ? 1.5 : 1.0;
       if (s.waypoints.length > 0) {
-        let target = s.waypoints[0];
-        let d = dist(s.x, s.y, target.x, target.y);
-        if (d < WAYPOINT_REACH) {
+        // Pop current waypoint when reached
+        if (dist(s.x, s.y, s.waypoints[0].x, s.waypoints[0].y) < WAYPOINT_REACH) {
           s.waypoints.shift();
+          s._stuckTimer = 0; s._hadSpeed = false; // reset stuck detection on normal reach
           if (s.waypoints.length === 0) { s.vx *= 0.5; s.vy *= 0.5; }
         }
+        // Stuck recovery: if ship has been trying to move but can't for a while, skip waypoint
         if (s.waypoints.length > 0) {
-          target = s.waypoints[0];
-          d = dist(s.x, s.y, target.x, target.y);
+          if (!s._stuckTimer) s._stuckTimer = 0;
+          if (!s._hadSpeed) s._hadSpeed = false;
+          const spd = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+          if (spd > 20) s._hadSpeed = true;
+          if (s._hadSpeed && spd < 3) s._stuckTimer += dt;
+          else if (spd >= 5) s._stuckTimer = 0;
+          if (s._stuckTimer > 8.0) { s.waypoints.shift(); s._stuckTimer = 0; s._hadSpeed = false; }
+        }
+        if (s.waypoints.length > 0) {
+          const target = s.waypoints[0];
+          const d = dist(s.x, s.y, target.x, target.y);
           const closeness = Math.max(0, 1 - d / CLOSE_DIST);
           const effTurn = TURN_RATE + (TURN_RATE_CLOSE - TURN_RATE) * closeness;
           let speed = MAX_SPEED * spdMult;
-          if (s.waypoints.length === 1) { const tt = Math.min(d / DECEL_DIST, 1); speed = MIN_SPEED + (speed - MIN_SPEED) * tt * tt; }
+          if (s.waypoints.length === 1 && d < DECEL_DIST) { const tt = d / DECEL_DIST; speed = MIN_SPEED + (speed - MIN_SPEED) * tt * tt; }
           const desA = Math.atan2(target.y - s.y, target.x - s.x);
           const dff = Math.abs(angleWrap(desA - s.rotation));
           const aPen = Math.min(dff / Math.PI, 1);
@@ -1027,9 +1037,9 @@ wss.on('connection', (ws) => {
       const fx = ship.waypoints.length > 0 ? ship.waypoints[ship.waypoints.length - 1].x : ship.x;
       const fy = ship.waypoints.length > 0 ? ship.waypoints[ship.waypoints.length - 1].y : ship.y;
       let pts = planPath(fx, fy, wx, wy);
-      if (pts.length > 6) pts = [pts[0], pts[pts.length - 1]];
+      if (pts.length > 8) pts = pts.slice(0, 8);
       for (const pt of pts) {
-        if (ship.waypoints.length < 12) ship.waypoints.push(pt);
+        if (ship.waypoints.length < 12) { ship.waypoints.push(pt); ship._stuckTimer = 0; ship._hadSpeed = false; }
       }
 
     } else if (msg.type === 'fireTorpedo' && playerRoom && playerRoom.state === 'playing') {
