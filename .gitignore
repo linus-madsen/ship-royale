@@ -3,3 +3,5 @@ api/warship.db
 api/node_modules/
 *.backup
 *.pre-nesscss
+api/warship.db-shm
+api/warship.db-wal
