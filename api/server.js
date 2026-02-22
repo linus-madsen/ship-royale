@@ -79,7 +79,7 @@ app.get('/player/:username', (req, res) => {
 const MAP_W = 4000, MAP_H = 3200;
 const MAX_SPEED = 200, MIN_SPEED = 40;
 const TURN_RATE = 1.8, TURN_RATE_CLOSE = 12.0, CLOSE_DIST = 120, DECEL_DIST = 150;
-const WAYPOINT_REACH = 20, ISLAND_MARGIN = 40;
+const WAYPOINT_REACH = 20;
 const AVOIDANCE_RANGE = 100, AVOIDANCE_FORCE = 3.0, MAP_PAD = 50;
 const FIRE_RANGE = 350, FIRE_COOLDOWN = 1.5;
 const CANNONBALL_SPEED = 250, CANNONBALL_DAMAGE = 1;
@@ -237,34 +237,7 @@ function isInZone(px, py, zone) {
   return dist(px, py, zone.cx, zone.cy) <= zone.radius;
 }
 
-// Pathfinding helpers
-function findBlockingIsland(ax, ay, bx, by) {
-  for (const s of islandCircles) {
-    if (segmentHitsCircle(ax, ay, bx, by, s.x, s.y, s.r)) return s;
-  }
-  return null;
-}
-
-function getBypassPoints(ax, ay, bx, by, isl) {
-  const dx = bx - ax, dy = by - ay, len = Math.sqrt(dx * dx + dy * dy);
-  if (len < 1) return [{ x: bx, y: by }];
-  const nx = -dy / len, ny = dx / len, br = isl.r + ISLAND_MARGIN;
-  const p1 = { x: isl.x + nx * br, y: isl.y + ny * br };
-  const p2 = { x: isl.x - nx * br, y: isl.y - ny * br };
-  const d1 = dist(ax, ay, p1.x, p1.y) + dist(p1.x, p1.y, bx, by);
-  const d2 = dist(ax, ay, p2.x, p2.y) + dist(p2.x, p2.y, bx, by);
-  return d1 <= d2 ? [p1] : [p2];
-}
-
-function resolveSegment(ax, ay, bx, by, depth) {
-  if (depth > 3) return [{ x: bx, y: by }];
-  const isl = findBlockingIsland(ax, ay, bx, by);
-  if (!isl) return [{ x: bx, y: by }];
-  const bp = getBypassPoints(ax, ay, bx, by, isl)[0];
-  return resolveSegment(ax, ay, bp.x, bp.y, depth + 1).concat(resolveSegment(bp.x, bp.y, bx, by, depth + 1));
-}
-
-function planPath(fx, fy, tx, ty) { return resolveSegment(fx, fy, tx, ty, 0); }
+// (Pathfinding helpers removed — real-time avoidance steering handles island navigation)
 
 // ========== ROOM / GAME LOOP ==========
 const MAX_PLAYERS = 12;
@@ -719,18 +692,7 @@ function tickGame(room) {
         // Pop current waypoint when reached
         if (dist(s.x, s.y, s.waypoints[0].x, s.waypoints[0].y) < WAYPOINT_REACH) {
           s.waypoints.shift();
-          s._stuckTimer = 0; s._hadSpeed = false; // reset stuck detection on normal reach
           if (s.waypoints.length === 0) { s.vx *= 0.5; s.vy *= 0.5; }
-        }
-        // Stuck recovery: if ship has been trying to move but can't for a while, skip waypoint
-        if (s.waypoints.length > 0) {
-          if (!s._stuckTimer) s._stuckTimer = 0;
-          if (!s._hadSpeed) s._hadSpeed = false;
-          const spd = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
-          if (spd > 20) s._hadSpeed = true;
-          if (s._hadSpeed && spd < 3) s._stuckTimer += dt;
-          else if (spd >= 5) s._stuckTimer = 0;
-          if (s._stuckTimer > 8.0) { s.waypoints.shift(); s._stuckTimer = 0; s._hadSpeed = false; }
         }
         if (s.waypoints.length > 0) {
           const target = s.waypoints[0];
@@ -1033,13 +995,9 @@ wss.on('connection', (ws) => {
       for (const isl of islandCircles) {
         if ((wx - isl.x) * (wx - isl.x) + (wy - isl.y) * (wy - isl.y) < isl.r * isl.r) return;
       }
-      // Pathfind from last waypoint or ship pos
-      const fx = ship.waypoints.length > 0 ? ship.waypoints[ship.waypoints.length - 1].x : ship.x;
-      const fy = ship.waypoints.length > 0 ? ship.waypoints[ship.waypoints.length - 1].y : ship.y;
-      let pts = planPath(fx, fy, wx, wy);
-      if (pts.length > 8) pts = pts.slice(0, 8);
-      for (const pt of pts) {
-        if (ship.waypoints.length < 12) { ship.waypoints.push(pt); ship._stuckTimer = 0; ship._hadSpeed = false; }
+      // Add waypoint directly — real-time avoidance steering handles islands
+      if (ship.waypoints.length < 12) {
+        ship.waypoints.push({ x: wx, y: wy });
       }
 
     } else if (msg.type === 'fireTorpedo' && playerRoom && playerRoom.state === 'playing') {
