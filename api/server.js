@@ -93,11 +93,11 @@ const ENEMY_SPEED_BASE = 70, ENEMY_TURN_RATE_BASE = 1.2, ENEMY_WANDER_INTERVAL =
 const ENEMY_COLORS = [0xff4444, 0x44ff44, 0x4488ff, 0xff44ff, 0xffaa00, 0x00ffcc, 0xff8888, 0xaaaaff, 0xffff44, 0x44ffff, 0xff6600];
 const ENEMY_NAMES = ['Blackbeard','Bonny','Drake','Kidd','Rackham','Silver','Hook','Barbossa','Calico','Teach','Morgan'];
 const ZONE_PHASES = [
-  { radius: 1500, delay: 30, shrinkTime: 15 },
-  { radius: 1000, delay: 40, shrinkTime: 12 },
-  { radius: 650,  delay: 35, shrinkTime: 10 },
-  { radius: 350,  delay: 30, shrinkTime: 10 },
-  { radius: 120,  delay: 25, shrinkTime: 8 }
+  { radius: 1500, delay: 15, shrinkTime: 12 },
+  { radius: 1000, delay: 20, shrinkTime: 10 },
+  { radius: 650,  delay: 18, shrinkTime: 8 },
+  { radius: 350,  delay: 15, shrinkTime: 8 },
+  { radius: 120,  delay: 12, shrinkTime: 6 }
 ];
 const ZONE_DPS = 1.5;
 const TICK_RATE = 30; // Hz
