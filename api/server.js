@@ -902,7 +902,7 @@ function tickGame(room) {
     loot: room.loot.map(l => ({ id: l.id, x: Math.round(l.x), y: Math.round(l.y), type: l.type })),
     zone: { cx: Math.round(z.cx), cy: Math.round(z.cy), radius: Math.round(z.radius), shrinking: z.shrinking, timer: z.shrinking ? 0 : Math.ceil(z.timer), phase: z.phase },
     monsters: room.seaMonsters.map(m => ({ x: Math.round(m.x), y: Math.round(m.y), frame: m.frame, type: m.type })),
-    blasts: room.blasts.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), radius: b.radius })),
+    blasts: room.blasts.map(b => ({ x: Math.round(b.x), y: Math.round(b.y), radius: b.radius, t: +(1 - b.life / 0.5).toFixed(2) })),
     time: Math.round(room.gameTime * 10) / 10,
     alive: room.aliveCount,
   };
