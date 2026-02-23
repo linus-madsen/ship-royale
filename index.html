@@ -1026,17 +1026,14 @@
         for (var bi2 = 0; bi2 < st.blasts.length; bi2++) {
             var bl = st.blasts[bi2];
             var t = bl.t || 0; // 0 = just spawned, 1 = about to disappear
-            // Fast expand, slow fade: radius grows quickly, alpha fades out
-            var expandT = Math.min(t * 2.5, 1); // reach full size at 40% of lifetime
-            var r = bl.radius * (0.15 + 0.85 * expandT);
-            var fadeT = Math.max(0, (t - 0.3) / 0.7); // start fading at 30% of lifetime
-            var alpha = 1 - fadeT * fadeT;
+            var r = bl.radius * (0.1 + 0.9 * t);
+            var alpha = 1 - t * t;
             // Fireball core (bright)
             combatGraphics.fillStyle(0xffaa00, 0.6 * alpha);
-            combatGraphics.fillCircle(bl.x, bl.y, r * 0.5);
+            combatGraphics.fillCircle(bl.x, bl.y, r * 0.4);
             // Mid ring (orange)
             combatGraphics.fillStyle(0xff6600, 0.35 * alpha);
-            combatGraphics.fillCircle(bl.x, bl.y, r * 0.75);
+            combatGraphics.fillCircle(bl.x, bl.y, r * 0.7);
             // Outer ring (red, translucent)
             combatGraphics.fillStyle(0xff2200, 0.15 * alpha);
             combatGraphics.fillCircle(bl.x, bl.y, r);
