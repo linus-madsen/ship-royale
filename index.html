@@ -370,6 +370,7 @@
     var zoneGraphics, minimapGraphics, routeGraphics, combatGraphics;
     var waypointMarkers = [];
     var localWaypoints = []; // local waypoint tracking for route display
+    var lastWaypointAddedAt = 0; // timestamp of last waypoint tap
 
     // Island defs (sent by server on gameStart)
     var islandDefs = [];
@@ -735,6 +736,7 @@
             localWaypoints.push({ x: wp.x, y: wp.y, t: Date.now() });
             var dot = scene.add.circle(wp.x, wp.y, 5, 0xffff00, 0.85).setDepth(5);
             waypointMarkers.push(dot);
+            lastWaypointAddedAt = Date.now();
         });
 
         // Keyboard hotkeys
@@ -901,13 +903,14 @@
             // Server tells us how many waypoints remain; trim consumed ones from front
             if (myShip.waypoints !== undefined) {
                 var serverCount = myShip.waypoints;
-                while (localWaypoints.length > serverCount && waypointMarkers.length > 0) {
+                var recentTap = (Date.now() - lastWaypointAddedAt) < 500;
+                while (localWaypoints.length > serverCount && waypointMarkers.length > 0 && !recentTap) {
                     localWaypoints.shift();
                     waypointMarkers[0].destroy();
                     waypointMarkers.shift();
                 }
-                // If server has 0 waypoints, clear everything
-                if (serverCount === 0 && (localWaypoints.length > 0 || waypointMarkers.length > 0)) {
+                // If server has 0 waypoints, clear everything (but not if we just tapped)
+                if (serverCount === 0 && (localWaypoints.length > 0 || waypointMarkers.length > 0) && !recentTap) {
                     for (var cwi = 0; cwi < waypointMarkers.length; cwi++) waypointMarkers[cwi].destroy();
                     waypointMarkers = [];
                     localWaypoints = [];
