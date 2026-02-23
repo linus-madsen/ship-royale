@@ -790,8 +790,8 @@
 
     function update(time, delta) {
         if (!scene || !gameStarted || !serverState) return;
-        if (gameOver && (!gameOverTime || Date.now() - gameOverTime > 4000)) return;
         if (gameOver && !gameOverTime) gameOverTime = Date.now();
+        if (gameOver && gameOverTime && Date.now() - gameOverTime > 4000) return;
 
         var st = serverState;
         var dt = Math.min(delta / 1000, 0.05);
