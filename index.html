@@ -856,16 +856,13 @@
             } else {
                 if (!sunkSlots[sd.slot]) {
                     sunkSlots[sd.slot] = true;
+                    // Clear waypoints for player
                     if (sd.slot === mySlot) {
-                        // Player death: swap to wreck texture, clear waypoints
-                        sp.sprite.setTexture('sunken_ship').setScale(0.5).setAlpha(1).setRotation(0);
-                        sp.sprite.clearTint();
                         for (var wmi = 0; wmi < waypointMarkers.length; wmi++) waypointMarkers[wmi].destroy();
                         waypointMarkers = [];
                         localWaypoints = [];
-                    } else {
-                        sinkShip(sp.sprite);
                     }
+                    sinkShip(sp.sprite);
                 }
                 sp.hpBarBg.setVisible(false);
                 sp.hpBar.setVisible(false);
