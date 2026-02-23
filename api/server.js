@@ -996,9 +996,7 @@ wss.on('connection', (ws) => {
         if ((wx - isl.x) * (wx - isl.x) + (wy - isl.y) * (wy - isl.y) < isl.r * isl.r) return;
       }
       // Add waypoint directly — real-time avoidance steering handles islands
-      if (ship.waypoints.length < 12) {
-        ship.waypoints.push({ x: wx, y: wy });
-      }
+      ship.waypoints.push({ x: wx, y: wy });
 
     } else if (msg.type === 'fireTorpedo' && playerRoom && playerRoom.state === 'playing') {
       const ship = playerRoom.ships.find(s => s.slot === playerSlot);
