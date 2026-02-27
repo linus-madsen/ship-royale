@@ -2,7 +2,7 @@
   "name": "Ship Royale",
   "short_name": "Ship Royale",
   "description": "Last Ship Standing — A pirate battle royale",
-  "start_url": "/warship/",
+  "start_url": "/ship-royale/",
   "display": "standalone",
   "background_color": "#0a0a1a",
   "theme_color": "#0a0a1a",

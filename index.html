@@ -9,6 +9,18 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a0a1a">
+    <meta name="description" content="Last Ship Standing — A pirate battle royale">
+    <meta property="og:title" content="Ship Royale — Last Ship Standing">
+    <meta property="og:description" content="A pirate battle royale browser game. Sink ships, dodge the kraken, be the last one afloat.">
+    <meta property="og:image" content="https://aidia.games/ship-royale/assets/icon-512.png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:url" content="https://aidia.games/ship-royale/">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Ship Royale — Last Ship Standing">
+    <meta name="twitter:description" content="A pirate battle royale browser game. Sink ships, dodge the kraken, be the last one afloat.">
+    <meta name="twitter:image" content="https://aidia.games/ship-royale/assets/icon-512.png">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P" rel="stylesheet">
     <link href="https://unpkg.com/nes.css@2.3.0/css/nes.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
@@ -375,7 +387,7 @@
     // Island defs (sent by server on gameStart)
     var islandDefs = [];
     var islandCircles = [];
-    var islandSizes = { island1: 85, island2: 80, island3: 90, island4: 75, island5: 85, island6: 80, island7: 90 };
+    var islandSizes = { island1: 85, island2: 80, island3: 90, island4: 75, island5: 85, island6: 80, island7: 90, ice_island1: 85, ice_island2: 80, ice_island3: 90, ice_island4: 75, ice_island5: 85, ice_island6: 80, ice_island7: 90 };
 
     // Last server state
     var serverState = null;
@@ -667,6 +679,7 @@
         this.load.audio('sfx_click', 'assets/sfx_click.mp3');
         this.load.audio('sfx_kraken', 'assets/sfx_kraken.mp3');
         for (var i = 1; i <= 7; i++) this.load.image('island' + i, 'assets/island' + i + '.png?v=1740874000');
+        for (var i = 1; i <= 7; i++) this.load.image('ice_island' + i, 'assets/ice_island' + i + '.png?v=1');
     }
 
     function create() {

@@ -103,6 +103,23 @@ const ZONE_DPS = 1.5;
 const TICK_RATE = 30; // Hz
 const TICK_MS = 1000 / TICK_RATE;
 
+// ========== DAILY THEME ==========
+const THEMES = ['tropical', 'ice'];
+function getThemeForToday() {
+  // Day-of-year determines theme. Feb 27 2026 = day 58 (even) → would be tropical,
+  // but we want today (Feb 27) to be ice. So odd days = tropical, even days = ice.
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86400000);
+  return dayOfYear % 2 === 0 ? 'ice' : 'tropical';
+}
+
+function themedIslandDefs(theme) {
+  if (theme === 'tropical') return islandDefs;
+  // Remap island keys: island1 → ice_island1, etc.
+  return islandDefs.map(d => ({ ...d, key: d.key.replace('island', 'ice_island') }));
+}
+
 const islandDefs = [
   {x:375,y:373,key:'island6',scale:0.8},{x:750,y:400,key:'island1',scale:0.9},{x:1312,y:267,key:'island1',scale:0.8},
   {x:1875,y:440,key:'island6',scale:0.6},{x:2438,y:240,key:'island3',scale:0.85},{x:3000,y:400,key:'island2',scale:0.7},
@@ -399,12 +416,16 @@ function startGame(room) {
   const playerList = room.ships.map(s => ({ slot: s.slot, name: s.name, isAI: s.isAI, color: s.color }));
 
   // Send gameStart to each human
+  const theme = getThemeForToday();
+  room.theme = theme;
+  const themed = themedIslandDefs(theme);
   for (const p of room.players) {
     sendTo(p.ws, {
       type: 'gameStart',
       slot: p.slot,
       players: playerList,
-      islands: islandDefs,
+      islands: themed,
+      theme: theme,
       monsters: room.seaMonsters.map(m => ({ x: m.x, y: m.y, type: m.type })),
     });
   }
