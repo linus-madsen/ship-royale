@@ -111,7 +111,7 @@ function getThemeForToday() {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 0);
   const dayOfYear = Math.floor((now - start) / 86400000);
-  return dayOfYear % 2 === 0 ? 'ice' : 'tropical';
+  return dayOfYear % 2 === 0 ? 'tropical' : 'ice';
 }
 
 function themedIslandDefs(theme) {
